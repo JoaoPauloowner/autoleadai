@@ -20,18 +20,20 @@ Plataforma completa, autônoma e independente (com **cérebro próprio em Node.j
 
 ---
 
-## 🚀 Como Executar
+## 🚀 Como Executar em Qualquer Computador
 
-### 1. Entrar na pasta do projeto:
+### 1. Clonar o repositório (no computador de quem for rodar):
 ```bash
-cd c:\Users\Usuario\OneDrive\Documentos\n8n_fluxos\autolead-ai
+git clone https://github.com/JoaoPauloowner/autoleadai.git
+cd autoleadai
 ```
 
-### 2. Iniciar a aplicação:
+### 2. Instalar as dependências e iniciar:
 ```bash
+npm install
 npm start
 ```
-*(Ou `npm run dev` para modo com hot-reload)*
+*(No Windows, você também pode simplesmente dar **dois cliques no arquivo `iniciar.bat`** que ele faz tudo sozinho!)*
 
 ### 3. Acessar no Navegador:
 - **Painel Cockpit Geral:** [http://localhost:3000](http://localhost:3000)
