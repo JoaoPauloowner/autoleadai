@@ -5,8 +5,9 @@ const vehicleController = require('../controllers/vehicleController');
 const leadController = require('../controllers/leadController');
 const bookingController = require('../controllers/bookingController');
 const chatController = require('../controllers/chatController');
+const taskController = require('../controllers/taskController');
+const importController = require('../controllers/importController');
 const config = require('../config/ai-provider');
-const db = require('../config/database');
 
 // Rotas de Veículos (Estoque)
 router.get('/vehicles', vehicleController.listVehicles);
@@ -20,13 +21,25 @@ router.get('/leads', leadController.listLeads);
 router.get('/leads/:id', leadController.getLeadDetails);
 router.patch('/leads/:id/status', leadController.updateLeadStatus);
 router.get('/dashboard/metrics', leadController.getDashboardMetrics);
+router.get('/dashboard/leakage', leadController.getLeakageAnalytics);
+
+// Rotas de Tarefas e Próximas Ações
+router.get('/tasks', taskController.listTasks);
+router.post('/tasks', taskController.createTask);
+router.patch('/tasks/:id/complete', taskController.completeTask);
+router.delete('/tasks/:id', taskController.deleteTask);
+
+// Rotas de Importação CSV
+router.post('/imports/leads', importController.importLeadsCsv);
 
 // Rotas de Test-Drives (Agendamentos)
 router.get('/test-drives', bookingController.listTestDrives);
 router.patch('/test-drives/:id/status', bookingController.updateTestDriveStatus);
 
-// Rotas do Chat / Simulador
+// Rotas do Chat / Simulador Multimodal
 router.post('/chat/send', chatController.sendMessage);
+router.post('/chat/send-audio', chatController.sendAudioMessage);
+router.post('/chat/send-photo', chatController.sendVehiclePhoto);
 router.get('/chat/messages/:leadId', chatController.getMessages);
 router.post('/chat/reset', chatController.resetSimulator);
 

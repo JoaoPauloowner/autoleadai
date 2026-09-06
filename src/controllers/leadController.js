@@ -16,9 +16,19 @@ exports.listLeads = (req, res) => {
       params.push(status);
     }
 
-    sql += ' ORDER BY l.updated_at DESC';
+    sql += ' ORDER BY l.score DESC, l.updated_at DESC';
 
-    const leads = db.prepare(sql).all(...params);
+    const leads = db.prepare(sql).all(...params).map(lead => {
+      let breakdown = { interesse: 15, prazo: 10, capacidade: 10, compromisso: 5 };
+      try {
+        if (lead.score_breakdown) breakdown = JSON.parse(lead.score_breakdown);
+      } catch (e) {}
+      return {
+        ...lead,
+        score_breakdown: breakdown
+      };
+    });
+
     res.json({ success: true, count: leads.length, data: leads });
   } catch (error) {
     console.error('Erro ao listar leads:', error);
@@ -51,12 +61,23 @@ exports.getLeadDetails = (req, res) => {
       ORDER BY td.scheduled_at DESC
     `).all(id);
 
+    const tasks = db.prepare(`
+      SELECT * FROM tasks WHERE lead_id = ? ORDER BY due_at ASC
+    `).all(id);
+
+    let breakdown = { interesse: 15, prazo: 10, capacidade: 10, compromisso: 5 };
+    try {
+      if (lead.score_breakdown) breakdown = JSON.parse(lead.score_breakdown);
+    } catch (e) {}
+
     res.json({
       success: true,
       data: {
         ...lead,
+        score_breakdown: breakdown,
         messages,
-        testDrives
+        testDrives,
+        tasks
       }
     });
   } catch (error) {
@@ -109,6 +130,77 @@ exports.getDashboardMetrics = (req, res) => {
     });
   } catch (error) {
     console.error('Erro ao carregar métricas:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Análise Executiva de Vazamento de Receita & SLA (Prompt 1 AutoPilot Ops)
+ */
+exports.getLeakageAnalytics = (req, res) => {
+  try {
+    // 1. Leads sem resposta após 15 min (SLA de ouro)
+    // Leads que enviaram mensagem mas não tiveram resposta recente ou demorou mais de 15 min
+    const unansweredRows = db.prepare(`
+      SELECT id, name, phone, channel, strftime('%s', 'now') - strftime('%s', last_inbound_at) as waiting_seconds
+      FROM leads
+      WHERE (last_outbound_at IS NULL OR last_outbound_at < last_inbound_at)
+        AND status IN ('novo', 'qualificado')
+    `).all();
+
+    const unansweredLeads = unansweredRows.filter(r => r.waiting_seconds > 900); // > 15 min
+
+    // 2. Leads ativos sem próxima ação definida
+    const noNextAction = db.prepare(`
+      SELECT id, name, phone, status, score
+      FROM leads
+      WHERE (next_action_title IS NULL OR next_action_title = '')
+        AND status IN ('novo', 'qualificado', 'test_drive', 'proposta')
+    `).all();
+
+    // 3. Tarefas de follow-up atrasadas
+    const overdueTasks = db.prepare(`
+      SELECT t.id, t.title, t.due_at, l.name as lead_name, l.phone as lead_phone
+      FROM tasks t
+      JOIN leads l ON t.lead_id = l.id
+      WHERE t.status != 'concluida'
+        AND datetime(t.due_at) < datetime('now')
+    `).all();
+
+    // 4. Test drives pendentes próximos de vencer confirmação
+    const pendingTestDrives = db.prepare(`
+      SELECT td.id, td.scheduled_at, l.name as lead_name, v.make, v.model
+      FROM test_drives td
+      JOIN leads l ON td.lead_id = l.id
+      JOIN vehicles v ON td.vehicle_id = v.id
+      WHERE td.status = 'pendente'
+    `).all();
+
+    // Estimativa de margem média por veículo (padrão de mercado: R$ 7.500)
+    const averageGrossMargin = 7500;
+    const totalRisks = unansweredLeads.length + noNextAction.length + overdueTasks.length;
+    const potentialRevenueAtRisk = totalRisks * averageGrossMargin;
+
+    res.json({
+      success: true,
+      data: {
+        slaLimitMinutes: 15,
+        unansweredCount: unansweredLeads.length,
+        unansweredLeads: unansweredLeads.slice(0, 5),
+        noNextActionCount: noNextAction.length,
+        noNextActionLeads: noNextAction.slice(0, 5),
+        overdueTasksCount: overdueTasks.length,
+        overdueTasks: overdueTasks.slice(0, 5),
+        pendingAppointmentsCount: pendingTestDrives.length,
+        totalAtRiskOpportunities: totalRisks,
+        potentialRevenueAtRisk: `R$ ${potentialRevenueAtRisk.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`,
+        summaryMessage: totalRisks > 0
+          ? `Atenção: Existem ${totalRisks} gargalos operacionais no seu funil gerando risco de vazamento de até R$ ${potentialRevenueAtRisk.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} em margem comercial.`
+          : 'Excelente! Operação comercial sem vazamentos ativos ou leads atrasados no momento.'
+      }
+    });
+  } catch (error) {
+    console.error('Erro na análise de vazamento:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
