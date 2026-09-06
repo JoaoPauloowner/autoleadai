@@ -277,7 +277,7 @@ function initDatabase() {
         body_type: 'SUV',
         features: JSON.stringify(['VW Play 10.1"', 'Painel Digital', 'Frenagem Autônoma de Emergência']),
         images: JSON.stringify([
-          'https://images.unsplash.com/photo-1541348263662-e0c8de4259ba?auto=format&fit=crop&w=800&q=80'
+          'https://images.unsplash.com/photo-1508974239320-0a029497e820?auto=format&fit=crop&w=800&q=80'
         ]),
         status: 'disponivel'
       }
