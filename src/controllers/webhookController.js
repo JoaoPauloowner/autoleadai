@@ -35,6 +35,21 @@ exports.handleWhatsAppWebhook = async (req, res) => {
       return res.status(200).json({ status: 'no_message_content' });
     }
 
+    // Deduplicação persistente de mensagens por ID para evitar disparos duplos do WhatsApp
+    const messageId = payload.data?.key?.id || payload.message_id || payload.messageId || payload.id;
+    if (messageId) {
+      try {
+        // Limpa registros com mais de 24 horas
+        db.prepare('DELETE FROM processed_messages WHERE received_at < ?').run(Date.now() - 24 * 60 * 60 * 1000);
+        db.prepare('INSERT INTO processed_messages (message_id, received_at) VALUES (?, ?)').run(String(messageId), Date.now());
+      } catch (err) {
+        if (err.message && err.message.includes('UNIQUE')) {
+          console.log(`⚠️ Mensagem WhatsApp duplicada ignorada (ID: ${messageId})`);
+          return res.status(200).json({ status: 'duplicate_ignored', messageId });
+        }
+      }
+    }
+
     // Busca ou cria lead pelo número de telefone
     let lead = db.prepare('SELECT * FROM leads WHERE phone = ?').get(senderPhone);
     if (!lead) {

@@ -114,7 +114,34 @@ function initDatabase() {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS processed_messages (
+      message_id TEXT PRIMARY KEY,
+      received_at INTEGER NOT NULL
+    );
   `);
+
+  try {
+    // Garante que não haja múltiplos test drives ativos duplicados por lead
+    db.exec(`
+      UPDATE test_drives
+      SET status = 'cancelado',
+          notes = COALESCE(notes || ' | ', '') || 'Duplicidade cancelada'
+      WHERE status IN ('pendente', 'confirmado')
+        AND id NOT IN (
+          SELECT MIN(id)
+          FROM test_drives
+          WHERE status IN ('pendente', 'confirmado')
+          GROUP BY lead_id
+        );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_test_drive_per_lead
+        ON test_drives (lead_id)
+        WHERE status IN ('pendente', 'confirmado');
+    `);
+  } catch (idxErr) {
+    console.warn('Aviso ao aplicar índice de test-drive:', idxErr.message);
+  }
 
   // Garante colunas novas caso o banco já existisse
   addColumnIfNotExists('leads', 'score', 'INTEGER DEFAULT 25');

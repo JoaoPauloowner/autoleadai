@@ -364,18 +364,37 @@ const toolExecutors = {
     const car = carStmt.get(veiculo_id);
     if (!car) return { erro: 'Veículo informado não existe.' };
 
-    const insertStmt = db.prepare(`
-      INSERT INTO test_drives (lead_id, vehicle_id, scheduled_at, seller_name, status, notes)
-      VALUES (?, ?, ?, ?, 'confirmado', ?)
-    `);
+    // Previne duplicidade: se já houver visita ativa para este cliente, atualiza os dados
+    const existingActive = db.prepare(`
+      SELECT id FROM test_drives 
+      WHERE lead_id = ? AND status IN ('pendente', 'confirmado')
+    `).get(lead_id);
 
-    insertStmt.run(
-      lead_id,
-      veiculo_id,
-      data_hora,
-      config.dealership.defaultSeller,
-      observacoes || 'Agendado pelo assistente virtual AutoLead AI'
-    );
+    if (existingActive) {
+      db.prepare(`
+        UPDATE test_drives 
+        SET vehicle_id = ?, scheduled_at = ?, notes = ?, status = 'confirmado'
+        WHERE id = ?
+      `).run(
+        veiculo_id,
+        data_hora,
+        observacoes || 'Reagendado pelo assistente virtual AutoLead',
+        existingActive.id
+      );
+    } else {
+      const insertStmt = db.prepare(`
+        INSERT INTO test_drives (lead_id, vehicle_id, scheduled_at, seller_name, status, notes)
+        VALUES (?, ?, ?, ?, 'confirmado', ?)
+      `);
+
+      insertStmt.run(
+        lead_id,
+        veiculo_id,
+        data_hora,
+        config.dealership.defaultSeller,
+        observacoes || 'Agendado pelo assistente virtual AutoLead'
+      );
+    }
 
     // Atualiza status do lead no CRM
     db.prepare(`UPDATE leads SET status = 'test_drive', interested_vehicle_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)

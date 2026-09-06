@@ -66,12 +66,18 @@ async function processMessage({ leadId, userMessage, channel = 'simulator' }) {
   // 4. Seleciona o motor de IA ativo
   const activeProvider = (config.provider || 'gemini').toLowerCase();
 
+  const { aiCircuitBreaker, withTimeout } = require('../infra/resilience');
+
   try {
     if (activeProvider === 'openai' && config.openai.apiKey && openaiClient) {
-      const result = await processWithOpenAI({ lead, historyRows, systemPrompt, executedToolsLog });
+      const result = await aiCircuitBreaker.run(() =>
+        withTimeout(() => processWithOpenAI({ lead, historyRows, systemPrompt, executedToolsLog }), 15000)
+      );
       replyText = result.replyText;
     } else if (activeProvider === 'gemini' && config.gemini.apiKey && googleGenAIClient) {
-      const result = await processWithGemini({ lead, historyRows, systemPrompt, executedToolsLog });
+      const result = await aiCircuitBreaker.run(() =>
+        withTimeout(() => processWithGemini({ lead, historyRows, systemPrompt, executedToolsLog }), 15000)
+      );
       replyText = result.replyText;
     } else {
       // Motor de Fallback Inteligente (Permite testar tudo imediatamente mesmo sem chaves de API!)
@@ -79,8 +85,8 @@ async function processMessage({ leadId, userMessage, channel = 'simulator' }) {
       replyText = result.replyText;
     }
   } catch (error) {
-    console.error('Erro no processamento da IA:', error);
-    // Em caso de falha de cota de API ou rede, aciona o fallback inteligente
+    console.warn('⚠️ Alerta de IA (acionando contingência inteligente):', error.message);
+    // Em caso de falha de cota, timeout ou queda de rede externa, aciona o fallback inteligente
     const result = await processWithSmartFallback({ lead, userMessage, historyRows, executedToolsLog });
     replyText = result.replyText;
   }
