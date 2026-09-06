@@ -1,0 +1,17 @@
+# Dependências do Node (não subir para o Git, pois são pesadas)
+node_modules/
+
+# Arquivo com chaves secretas (não subir chaves de API)
+.env
+
+# Banco de dados local SQLite (deixar cada ambiente com o seu ou usar semente automática)
+data/autolead.db
+data/autolead.db-journal
+data/autolead.db-wal
+
+# Logs e arquivos temporários do sistema
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
