@@ -19,10 +19,14 @@ router.delete('/vehicles/:id', vehicleController.deleteVehicle);
 
 // Rotas de Leads (CRM)
 router.get('/leads', leadController.listLeads);
+router.post('/leads', leadController.createLead);
 router.get('/leads/:id', leadController.getLeadDetails);
+router.put('/leads/:id', leadController.updateLead);
 router.patch('/leads/:id/status', leadController.updateLeadStatus);
+router.delete('/leads/:id', leadController.deleteLead);
 router.get('/dashboard/metrics', leadController.getDashboardMetrics);
 router.get('/dashboard/leakage', leadController.getLeakageAnalytics);
+router.post('/integrations/portal-lead', leadController.handlePortalLeadWebhook);
 
 // Rotas de Tarefas e Próximas Ações
 router.get('/tasks', taskController.listTasks);

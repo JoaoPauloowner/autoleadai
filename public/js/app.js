@@ -6,8 +6,63 @@ let leadsData = [];
 let testDrivesData = [];
 let tasksData = [];
 
+// ==========================================
+// 0. SEGURANÇA: ESCAPE HTML E AUTENTICAÇÃO
+// ==========================================
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+(function setupApiAuth() {
+  const STORAGE_KEY = 'autolead_admin_api_key';
+  const originalFetch = window.fetch.bind(window);
+
+  function getStoredKey() {
+    return localStorage.getItem(STORAGE_KEY) || '';
+  }
+
+  function promptForKey() {
+    const key = window.prompt('Digite a chave de acesso (ADMIN_API_KEY) do painel AutoLead AI:');
+    if (key && key.trim()) {
+      localStorage.setItem(STORAGE_KEY, key.trim());
+      return key.trim();
+    }
+    return '';
+  }
+
+  let apiKey = getStoredKey();
+
+  window.fetch = async function (url, options = {}) {
+    const isApiCall = typeof url === 'string' && url.startsWith('/api') && !url.startsWith('/api/webhook') && !url.startsWith('/api/integrations');
+
+    if (isApiCall && apiKey) {
+      options = { ...options, headers: { ...(options.headers || {}), 'x-api-key': apiKey } };
+    }
+
+    const response = await originalFetch(url, options);
+
+    if (isApiCall && response.status === 401) {
+      localStorage.removeItem(STORAGE_KEY);
+      apiKey = promptForKey();
+      if (apiKey) {
+        options = { ...options, headers: { ...(options.headers || {}), 'x-api-key': apiKey } };
+        return await originalFetch(url, options);
+      }
+    }
+
+    return response;
+  };
+})();
+
 // Inicialização ao carregar o DOM
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   initNavigation();
   loadSettings();
   loadDashboardData();
@@ -242,21 +297,27 @@ function renderKanban(leads) {
 
     const card = document.createElement('div');
     card.className = 'lead-card';
+    card.style.cursor = 'pointer';
     card.innerHTML = `
       <div class="lead-card-top">
-        <span class="lead-name">${lead.name || 'Cliente'}</span>
-        <span class="lead-score-pill ${scoreClass}" title="${tooltipText}">
-          <i class="fa-solid ${scoreIcon}"></i> ${score} pts
-        </span>
+        <span class="lead-name">${escapeHtml(lead.name) || 'Cliente'}</span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="lead-score-pill ${scoreClass}" title="${escapeHtml(tooltipText)}">
+            <i class="fa-solid ${scoreIcon}"></i> ${score} pts
+          </span>
+          <button type="button" class="btn-icon" onclick="event.stopPropagation(); handleDeleteLead(${lead.id})" title="Excluir contato" style="width: 26px; height: 26px; border: none; background: rgba(239, 68, 68, 0.12); color: #ef4444; border-radius: 4px; cursor: pointer;">
+            <i class="fa-solid fa-trash" style="font-size: 0.72rem;"></i>
+          </button>
+        </div>
       </div>
-      ${lead.vehicle_model ? `<div class="lead-car-tag"><i class="fa-solid fa-car"></i> ${lead.vehicle_make} ${lead.vehicle_model}</div>` : ''}
+      ${lead.vehicle_model ? `<div class="lead-car-tag"><i class="fa-solid fa-car"></i> ${escapeHtml(lead.vehicle_make)} ${escapeHtml(lead.vehicle_model)}</div>` : ''}
       <div style="font-size: 0.78rem; color: var(--text-secondary); line-height: 1.35; margin-bottom: 6px;">
-        ${lead.ai_summary || 'Lead em atendimento.'}
+        ${escapeHtml(lead.ai_summary) || 'Lead em atendimento.'}
       </div>
       ${lead.next_action_title ? `
         <div class="lead-next-action-row" title="Próxima ação de follow-up">
           <i class="fa-solid fa-calendar-check" style="color: var(--accent-cyan);"></i>
-          <span>${lead.next_action_title}</span>
+          <span>${escapeHtml(lead.next_action_title)}</span>
         </div>
       ` : `
         <div class="lead-next-action-row" style="border-color: #ef4444; color: #fca5a5;">
@@ -265,17 +326,13 @@ function renderKanban(leads) {
         </div>
       `}
       <div class="lead-badges">
-        <span class="badge-tag"><i class="fa-solid fa-phone"></i> ${lead.phone}</span>
+        <span class="badge-tag"><i class="fa-solid fa-phone"></i> ${escapeHtml(lead.phone)}</span>
         ${lead.has_trade_in ? '<span class="badge-tag" style="color: var(--accent-amber);"><i class="fa-solid fa-rotate"></i> Troca</span>' : ''}
-        ${lead.payment_method ? `<span class="badge-tag">${lead.payment_method.replace('_', ' ')}</span>` : ''}
+        ${lead.payment_method ? `<span class="badge-tag">${escapeHtml(lead.payment_method.replace('_', ' '))}</span>` : ''}
       </div>
     `;
 
-    card.onclick = () => {
-      currentLeadId = lead.id;
-      switchView('simulator');
-      loadSimulatorHistory(lead.id);
-    };
+    card.onclick = () => openLeadDetails(lead.id);
 
     col.appendChild(card);
   });
@@ -323,10 +380,10 @@ function renderTasksGrid(tasks) {
           <span class="task-type-badge ${t.type}">${t.type}</span>
           ${isOverdue ? '<span style="color: #f87171; font-size: 0.72rem; font-weight: 800;"><i class="fa-solid fa-triangle-exclamation"></i> ATRASADA</span>' : ''}
         </div>
-        <div class="task-title">${t.title}</div>
+        <div class="task-title">${escapeHtml(t.title)}</div>
         <div class="task-lead-info">
-          <i class="fa-solid fa-user"></i> <strong>${t.lead_name}</strong> (${t.lead_phone})
-          ${t.vehicle_model ? `• ${t.vehicle_make} ${t.vehicle_model}` : ''}
+          <i class="fa-solid fa-user"></i> <strong>${escapeHtml(t.lead_name)}</strong> (${escapeHtml(t.lead_phone)})
+          ${t.vehicle_model ? `• ${escapeHtml(t.vehicle_make)} ${escapeHtml(t.vehicle_model)}` : ''}
         </div>
         <div class="task-footer">
           <span class="task-due ${isOverdue ? 'overdue' : ''}">
@@ -552,7 +609,7 @@ async function handleSendUserMessage(e) {
  * Simulação de envio de áudio nativo pelo cliente (RAG Multimodal)
  */
 async function simulateSendAudio() {
-  appendWaBubble('outgoing', '🎙️ <em>[Mensagem de voz - 0:14s]</em> "Oi Lucas! Eu vi o anúncio do Renegade. Queria saber se vocês aceitam meu carro na troca e quanto fica a parcela em 48x?"');
+  appendWaBubble('outgoing', '🎙️ <em>[Mensagem de voz - 0:14s]</em> "Oi Lucas! Eu vi o anúncio do Renegade. Queria saber se vocês aceitam meu carro na troca e quanto fica a parcela em 48x?"', true);
 
   const statusEl = document.getElementById('waTypingStatus');
   statusEl.textContent = 'ouvindo áudio e transcrevendo...';
@@ -584,7 +641,7 @@ async function simulateSendAudio() {
  * Simulação de envio de foto do carro na troca (RAG Multimodal Vision)
  */
 async function simulateSendCarPhoto() {
-  appendWaBubble('outgoing', '📷 <em>[Foto do Veículo da Troca enviada pelo cliente]</em><br><img src="https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=300" style="width: 100%; border-radius: 8px; margin-top: 6px;">');
+  appendWaBubble('outgoing', '📷 <em>[Foto do Veículo da Troca enviada pelo cliente]</em><br><img src="https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=300" style="width: 100%; border-radius: 8px; margin-top: 6px;">', true);
 
   const statusEl = document.getElementById('waTypingStatus');
   statusEl.textContent = 'analisando imagem do veículo...';
@@ -611,12 +668,13 @@ async function simulateSendCarPhoto() {
   }
 }
 
-function appendWaBubble(type, text) {
+function appendWaBubble(type, text, trustedHtml = false) {
   const container = document.getElementById('waMessagesContainer');
   const bubble = document.createElement('div');
   bubble.className = `wa-bubble ${type}`;
 
-  const formattedText = text
+  const safeText = trustedHtml ? text : escapeHtml(text);
+  const formattedText = safeText
     .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>');
 
@@ -648,7 +706,7 @@ function renderTelemetryTools(tools, provider) {
           <strong>${count} veículo(s)</strong> localizado(s) no showroom.
         </div>
         <div style="font-size: 0.78rem; color: var(--text-secondary);">
-          Filtros: ${t.args.marca || 'Qualquer'} ${t.args.modelo || ''} ${t.args.tipoCarroceria ? `(${t.args.tipoCarroceria})` : ''} ${t.args.precoMax ? `até R$ ${Number(t.args.precoMax).toLocaleString('pt-BR')}` : ''}
+          Filtros: ${escapeHtml(t.args.marca) || 'Qualquer'} ${escapeHtml(t.args.modelo) || ''} ${t.args.tipoCarroceria ? `(${escapeHtml(t.args.tipoCarroceria)})` : ''} ${t.args.precoMax ? `até R$ ${Number(t.args.precoMax).toLocaleString('pt-BR')}` : ''}
         </div>
       `;
     } else if (t.name === 'simular_financiamento') {
@@ -668,7 +726,7 @@ function renderTelemetryTools(tools, provider) {
       iconClass = 'fa-solid fa-calendar-check';
       summaryHtml = `
         <div style="font-size: 0.85rem; color: #38bdf8; margin-bottom: 4px;">
-          <strong>Data/Horário:</strong> ${t.args.dataHora || 'Horário comercial'}
+          <strong>Data/Horário:</strong> ${escapeHtml(t.args.dataHora) || 'Horário comercial'}
         </div>
         <div style="font-size: 0.78rem; color: var(--text-secondary);">
           Vendedor da loja escalado para receber o cliente no showroom.
@@ -679,15 +737,15 @@ function renderTelemetryTools(tools, provider) {
       iconClass = 'fa-solid fa-user-check';
       summaryHtml = `
         <div style="font-size: 0.82rem; color: #fff; line-height: 1.4;">
-          ${t.args.carroTroca ? `🚗 <strong>Possui carro na troca:</strong> ${t.args.carroTroca}<br>` : ''}
+          ${t.args.carroTroca ? `🚗 <strong>Possui carro na troca:</strong> ${escapeHtml(t.args.carroTroca)}<br>` : ''}
           ${t.args.valorEntrada ? `💵 <strong>Entrada disponível:</strong> R$ ${Number(t.args.valorEntrada).toLocaleString('pt-BR')}<br>` : ''}
-          ${t.args.urgenciaCompra ? `⏱️ <strong>Prazo de compra:</strong> ${t.args.urgenciaCompra}` : ''}
+          ${t.args.urgenciaCompra ? `⏱️ <strong>Prazo de compra:</strong> ${escapeHtml(t.args.urgenciaCompra)}` : ''}
         </div>
       `;
     } else {
       actionTitle = 'Atendimento ao Cliente';
       iconClass = 'fa-solid fa-check-double';
-      summaryHtml = `<div style="font-size: 0.8rem; color: var(--text-secondary);">${JSON.stringify(t.args)}</div>`;
+      summaryHtml = `<div style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(JSON.stringify(t.args))}</div>`;
     }
 
     const logItem = document.createElement('div');
@@ -732,12 +790,12 @@ async function loadTestDrives() {
 
     tbody.innerHTML = testDrivesData.map(td => `
       <tr>
-        <td><strong><i class="fa-solid fa-clock" style="color: var(--accent-cyan); margin-right: 6px;"></i>${td.scheduled_at}</strong></td>
-        <td>${td.lead_name}</td>
-        <td>${td.lead_phone}</td>
-        <td>${td.vehicle_make} ${td.vehicle_model}</td>
-        <td>${td.seller_name || 'Lucas'}</td>
-        <td><span class="stat-badge ${td.status === 'confirmado' ? 'success' : 'warning'}">${td.status}</span></td>
+        <td><strong><i class="fa-solid fa-clock" style="color: var(--accent-cyan); margin-right: 6px;"></i>${escapeHtml(td.scheduled_at)}</strong></td>
+        <td>${escapeHtml(td.lead_name)}</td>
+        <td>${escapeHtml(td.lead_phone)}</td>
+        <td>${escapeHtml(td.vehicle_make)} ${escapeHtml(td.vehicle_model)}</td>
+        <td>${escapeHtml(td.seller_name) || 'Lucas'}</td>
+        <td><span class="stat-badge ${td.status === 'confirmado' ? 'success' : 'warning'}">${escapeHtml(td.status)}</span></td>
         <td>
           <div style="display: flex; gap: 6px;">
             <button class="btn-icon" title="Confirmar" onclick="changeTestDriveStatus(${td.id}, 'confirmado')"><i class="fa-solid fa-check"></i></button>
@@ -797,22 +855,23 @@ function renderVehiclesGrid(vehicles) {
     `;
     return;
   }
+  container.innerHTML = vehicles.map(v => {
     const photo = (v.images && v.images.length > 0) ? v.images[0] : 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800';
     return `
       <div class="vehicle-card">
         <div class="vehicle-image-wrapper">
-          <img src="${photo}" alt="${v.make} ${v.model}">
-          <span class="vehicle-badge-status ${v.status}">${v.status}</span>
-          <span class="vehicle-body-type">${v.body_type || 'Carro'}</span>
+          <img src="${escapeHtml(photo)}" alt="${escapeHtml(v.make)} ${escapeHtml(v.model)}">
+          <span class="vehicle-badge-status ${escapeHtml(v.status)}">${escapeHtml(v.status)}</span>
+          <span class="vehicle-body-type">${escapeHtml(v.body_type) || 'Carro'}</span>
         </div>
         <div class="vehicle-content">
-          <h3 class="vehicle-title">${v.make} ${v.model}</h3>
-          <p class="vehicle-version">${v.version || ''}</p>
+          <h3 class="vehicle-title">${escapeHtml(v.make)} ${escapeHtml(v.model)}</h3>
+          <p class="vehicle-version">${escapeHtml(v.version) || ''}</p>
           <div class="vehicle-specs">
             <span>${v.year_fab}/${v.year_model}</span>
             <span>${Number(v.mileage).toLocaleString('pt-BR')} km</span>
-            <span>${v.fuel}</span>
-            <span>${v.transmission}</span>
+            <span>${escapeHtml(v.fuel)}</span>
+            <span>${escapeHtml(v.transmission)}</span>
           </div>
           <div class="vehicle-footer">
             <div class="vehicle-price">R$ ${Number(v.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
@@ -868,17 +927,29 @@ async function loadSettings() {
     if (!json.success) return;
 
     const data = json.data;
-    document.getElementById('sidebarAiProvider').textContent = `${data.provider.toUpperCase()} (${data.hasGeminiKey || data.hasOpenAiKey ? 'Chave Configurada' : 'Motor Nativo Ativo'})`;
-    document.getElementById('dealershipSubtitle').textContent = data.dealership.name;
-    document.getElementById('telemetryProviderBadge').textContent = `${data.provider.toUpperCase()}`;
+    const sidebarAi = document.getElementById('sidebarAiProvider');
+    if (sidebarAi) sidebarAi.textContent = `${data.provider.toUpperCase()} (${data.hasGeminiKey || data.hasOpenAiKey ? 'Chave Configurada' : 'Motor Nativo Ativo'})`;
+
+    const subtitle = document.getElementById('dealershipSubtitle');
+    if (subtitle) subtitle.textContent = data.dealership.name;
+
+    const telemetryBadge = document.getElementById('telemetryProviderBadge');
+    if (telemetryBadge) telemetryBadge.textContent = `${data.provider.toUpperCase()}`;
 
     const radio = document.querySelector(`input[name="aiProvider"][value="${data.provider}"]`);
     if (radio) radio.checked = true;
 
-    document.getElementById('dealershipNameInput').value = data.dealership.name;
-    document.getElementById('dealershipPhoneInput').value = data.dealership.phone;
-    document.getElementById('dealershipAddressInput').value = data.dealership.address;
-    document.getElementById('webhookUrlDisplay').textContent = `${window.location.origin}/api/webhook/whatsapp`;
+    const nameInput = document.getElementById('dealershipNameInput');
+    if (nameInput) nameInput.value = data.dealership.name;
+
+    const phoneInput = document.getElementById('dealershipPhoneInput');
+    if (phoneInput) phoneInput.value = data.dealership.phone;
+
+    const addrInput = document.getElementById('dealershipAddressInput');
+    if (addrInput) addrInput.value = data.dealership.address;
+
+    const webhookDisplay = document.getElementById('webhookUrlDisplay');
+    if (webhookDisplay) webhookDisplay.textContent = `${window.location.origin}/api/webhook/whatsapp`;
   } catch (e) {
     console.error(e);
   }
@@ -944,27 +1015,37 @@ async function checkWhatsAppStatus() {
       if (settingsDesc) settingsDesc.innerHTML = `🟢 <strong>Ativo e respondendo:</strong> ${phone || 'Conectado'}`;
 
       // Atualiza modal se estiver aberto
-      document.getElementById('waModalDisconnectedView').style.display = 'none';
-      document.getElementById('waModalQrView').style.display = 'none';
-      document.getElementById('waModalConnectedView').style.display = 'block';
-      document.getElementById('waConnectedPhoneDisplay').textContent = phone || 'Conectado';
+      const discView = document.getElementById('waModalDisconnectedView');
+      if (discView) discView.style.display = 'none';
+      const qrView = document.getElementById('waModalQrView');
+      if (qrView) qrView.style.display = 'none';
+      const connView = document.getElementById('waModalConnectedView');
+      if (connView) connView.style.display = 'block';
+      const phoneDisp = document.getElementById('waConnectedPhoneDisplay');
+      if (phoneDisp) phoneDisp.textContent = phone || 'Conectado';
     } else if (status === 'connecting') {
       if (topbarText) topbarText.textContent = 'Aguardando QR Code...';
       if (settingsBtn) settingsBtn.textContent = 'Aguardando Leitura';
       if (settingsDesc) settingsDesc.textContent = 'Aponte a câmera do WhatsApp para o QR Code na tela.';
 
-      document.getElementById('waModalDisconnectedView').style.display = 'none';
-      document.getElementById('waModalConnectedView').style.display = 'none';
-      document.getElementById('waModalQrView').style.display = 'block';
+      const discView = document.getElementById('waModalDisconnectedView');
+      if (discView) discView.style.display = 'none';
+      const connView = document.getElementById('waModalConnectedView');
+      if (connView) connView.style.display = 'none';
+      const qrView = document.getElementById('waModalQrView');
+      if (qrView) qrView.style.display = 'block';
 
+      const spinner = document.getElementById('qrLoadingSpinner');
+      const img = document.getElementById('qrCodeImage');
       if (qrCode) {
-        document.getElementById('qrLoadingSpinner').style.display = 'none';
-        const img = document.getElementById('qrCodeImage');
-        img.src = qrCode;
-        img.style.display = 'block';
+        if (spinner) spinner.style.display = 'none';
+        if (img) {
+          img.src = qrCode;
+          img.style.display = 'block';
+        }
       } else {
-        document.getElementById('qrLoadingSpinner').style.display = 'block';
-        document.getElementById('qrCodeImage').style.display = 'none';
+        if (spinner) spinner.style.display = 'block';
+        if (img) img.style.display = 'none';
       }
     } else {
       if (topbarText) topbarText.textContent = 'Conectar WhatsApp';
@@ -1026,4 +1107,250 @@ async function disconnectWhatsAppConnection() {
     alert('Erro ao desconectar WhatsApp.');
   }
 }
+
+// ==========================================
+// 10. TEMA: MODO CLARO & MODO ESCURO
+// ==========================================
+function initTheme() {
+  const saved = localStorage.getItem('theme');
+  const btn = document.getElementById('themeToggleBtn');
+  if (saved === 'light') {
+    document.body.classList.add('light-mode');
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-moon"></i>';
+  } else {
+    document.body.classList.remove('light-mode');
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-sun"></i>';
+  }
+}
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-mode');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) {
+    btn.innerHTML = isLight ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+  }
+}
+
+// ==========================================
+// 11. CADASTRO DE NOVO CONTATO (+ NOVO LEAD)
+// ==========================================
+async function openNewLeadModal() {
+  document.getElementById('newLeadModal').classList.add('active');
+  document.getElementById('newLeadForm').reset();
+  document.getElementById('nlTradeInDetailsRow').style.display = 'none';
+
+  // Popula seletor de veículos do estoque
+  const vSelect = document.getElementById('nlVehicleSelect');
+  vSelect.innerHTML = '<option value="">Ainda não definiu / Em pesquisa</option>';
+  try {
+    const res = await fetch('/api/vehicles');
+    const json = await res.json();
+    if (json.success) {
+      json.data.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = `${v.make} ${v.model} ${v.version || ''} - R$ ${Number(v.price).toLocaleString('pt-BR')}`;
+        vSelect.appendChild(opt);
+      });
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function closeNewLeadModal() {
+  document.getElementById('newLeadModal').classList.remove('active');
+}
+
+async function handleCreateLead(e) {
+  e.preventDefault();
+  const name = document.getElementById('nlName').value.trim();
+  const phone = document.getElementById('nlPhone').value.trim();
+  const email = document.getElementById('nlEmail').value.trim();
+  const channel = document.getElementById('nlChannel').value;
+  const interested_vehicle_id = document.getElementById('nlVehicleSelect').value;
+  const payment_method = document.getElementById('nlPaymentMethod').value;
+  const budget_max = document.getElementById('nlBudget').value;
+  const has_trade_in = document.getElementById('nlHasTradeIn').checked;
+  const trade_in_details = document.getElementById('nlTradeInDetails').value.trim();
+  const status = document.getElementById('nlStatus').value;
+
+  try {
+    const res = await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        phone,
+        email: email || undefined,
+        channel,
+        interested_vehicle_id: interested_vehicle_id ? parseInt(interested_vehicle_id, 10) : undefined,
+        payment_method,
+        budget_max: budget_max ? parseFloat(budget_max) : undefined,
+        has_trade_in,
+        trade_in_details: has_trade_in ? trade_in_details : undefined,
+        status
+      })
+    });
+
+    const json = await res.json();
+    if (json.success) {
+      closeNewLeadModal();
+      loadCRM();
+      loadDashboardData();
+    } else {
+      alert('Erro: ' + json.error);
+    }
+  } catch (err) {
+    console.error('Erro ao cadastrar contato:', err);
+  }
+}
+
+// ==========================================
+// 12. FICHA COMPLETA DO COMPRADOR (RAIO-X DE COMPRA)
+// ==========================================
+let currentDetailLeadId = null;
+let currentDetailLeadPhone = null;
+
+async function openLeadDetails(id) {
+  currentDetailLeadId = id;
+  const modal = document.getElementById('leadDetailsModal');
+  modal.classList.add('active');
+
+  try {
+    // Busca dados dos veículos para preencher dropdown
+    const vSelect = document.getElementById('ldVehicleSelect');
+    vSelect.innerHTML = '<option value="">Nenhum veículo vinculado</option>';
+    const vRes = await fetch('/api/vehicles');
+    const vJson = await vRes.json();
+    if (vJson.success) {
+      vJson.data.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = `${v.make} ${v.model} ${v.version || ''} - R$ ${Number(v.price).toLocaleString('pt-BR')}`;
+        vSelect.appendChild(opt);
+      });
+    }
+
+    // Busca detalhes do lead
+    const res = await fetch(`/api/leads/${id}`);
+    const json = await res.json();
+    if (!json.success) return;
+
+    const lead = json.data;
+    currentDetailLeadPhone = lead.phone;
+
+    document.getElementById('ldLeadName').textContent = lead.name || 'Cliente';
+    document.getElementById('ldLeadPhone').textContent = `Telefone: ${lead.phone} • Origem: ${lead.channel || 'Balcão'}`;
+    document.getElementById('ldStatus').value = lead.status || 'novo';
+
+    // Lead Score
+    const score = lead.score || 25;
+    const badge = document.getElementById('ldScoreBadge');
+    badge.innerHTML = `<i class="fa-solid fa-fire"></i> ${score} pts`;
+
+    const b = lead.score_breakdown || { interesse: 15, prazo: 10, capacidade: 10, compromisso: 5 };
+    document.getElementById('ldScoreInteresse').textContent = `${b.interesse || 0}/25`;
+    document.getElementById('ldScorePrazo').textContent = `${b.prazo || 0}/25`;
+    document.getElementById('ldScoreCapacidade').textContent = `${b.capacidade || 0}/25`;
+    document.getElementById('ldScoreCompromisso').textContent = `${b.compromisso || 0}/25`;
+
+    if (lead.interested_vehicle_id) {
+      vSelect.value = lead.interested_vehicle_id;
+    }
+
+    document.getElementById('ldPaymentMethod').value = lead.payment_method || 'financiamento';
+    document.getElementById('ldBudget').value = lead.budget_max || '';
+
+    const hasTradeIn = !!lead.has_trade_in;
+    document.getElementById('ldHasTradeIn').checked = hasTradeIn;
+    document.getElementById('ldTradeInGroup').style.display = hasTradeIn ? 'block' : 'none';
+    document.getElementById('ldTradeInDetails').value = lead.trade_in_details || '';
+
+    document.getElementById('ldNextActionTitle').value = lead.next_action_title || '';
+    document.getElementById('ldAiSummaryText').textContent = lead.ai_summary || 'Nenhuma observação registrada.';
+  } catch (e) {
+    console.error('Erro ao abrir detalhes do lead:', e);
+  }
+}
+
+function closeLeadDetailsModal() {
+  document.getElementById('leadDetailsModal').classList.remove('active');
+  currentDetailLeadId = null;
+  currentDetailLeadPhone = null;
+}
+
+async function handleUpdateLead(e) {
+  e.preventDefault();
+  if (!currentDetailLeadId) return;
+
+  const status = document.getElementById('ldStatus').value;
+  const interested_vehicle_id = document.getElementById('ldVehicleSelect').value;
+  const payment_method = document.getElementById('ldPaymentMethod').value;
+  const budget_max = document.getElementById('ldBudget').value;
+  const has_trade_in = document.getElementById('ldHasTradeIn').checked;
+  const trade_in_details = document.getElementById('ldTradeInDetails').value.trim();
+  const next_action_title = document.getElementById('ldNextActionTitle').value.trim();
+
+  try {
+    const res = await fetch(`/api/leads/${currentDetailLeadId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status,
+        interested_vehicle_id: interested_vehicle_id ? parseInt(interested_vehicle_id, 10) : null,
+        payment_method,
+        budget_max: budget_max ? parseFloat(budget_max) : null,
+        has_trade_in,
+        trade_in_details: has_trade_in ? trade_in_details : null,
+        next_action_title: next_action_title || null
+      })
+    });
+
+    const json = await res.json();
+    if (json.success) {
+      closeLeadDetailsModal();
+      loadCRM();
+      loadDashboardData();
+    } else {
+      alert('Erro: ' + json.error);
+    }
+  } catch (err) {
+    console.error('Erro ao atualizar comprador:', err);
+  }
+}
+
+async function handleDeleteCurrentLead() {
+  if (!currentDetailLeadId) return;
+  if (!confirm('Tem certeza que deseja excluir permanentemente este contato do funil?')) return;
+
+  await handleDeleteLead(currentDetailLeadId);
+  closeLeadDetailsModal();
+}
+
+async function handleDeleteLead(leadId) {
+  if (!confirm('Deseja excluir este contato?')) return;
+  try {
+    const res = await fetch(`/api/leads/${leadId}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.success) {
+      loadCRM();
+      loadDashboardData();
+      loadTasks();
+    } else {
+      alert('Erro: ' + json.error);
+    }
+  } catch (err) {
+    alert('Erro ao excluir contato');
+  }
+}
+
+function openCurrentLeadWhatsApp() {
+  if (!currentDetailLeadPhone) return;
+  const rawPhone = currentDetailLeadPhone.replace(/\D/g, '');
+  const finalPhone = rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`;
+  window.open(`https://wa.me/${finalPhone}`, '_blank');
+}
+
 

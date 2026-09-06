@@ -102,6 +102,148 @@ exports.updateLeadStatus = (req, res) => {
   }
 };
 
+exports.createLead = (req, res) => {
+  try {
+    const {
+      name, phone, email, channel, status, budget_max,
+      payment_method, has_trade_in, trade_in_details, interested_vehicle_id, ai_summary
+    } = req.body;
+
+    if (!name || !phone) {
+      return res.status(400).json({ success: false, error: 'Nome e telefone são obrigatórios' });
+    }
+
+    const cleanPhone = phone.toString().replace(/\D/g, '');
+    const scorer = require('../ai/scorer');
+    const initialScore = scorer.calculateScore({
+      hasVehicle: !!interested_vehicle_id,
+      paymentMethod: payment_method,
+      budget: budget_max,
+      hasTradeIn: !!has_trade_in,
+      timeline: '15_dias'
+    });
+
+    const stmt = db.prepare(`
+      INSERT INTO leads (
+        name, phone, email, channel, status, budget_max,
+        payment_method, has_trade_in, trade_in_details, interested_vehicle_id,
+        ai_summary, score, score_breakdown, last_inbound_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `);
+
+    const result = stmt.run(
+      name.trim(),
+      cleanPhone,
+      email || null,
+      channel || 'manual',
+      status || 'novo',
+      budget_max ? parseFloat(budget_max) : null,
+      payment_method || 'financiamento',
+      has_trade_in ? 1 : 0,
+      trade_in_details || null,
+      interested_vehicle_id ? parseInt(interested_vehicle_id, 10) : null,
+      ai_summary || 'Contato cadastrado manualmente na loja',
+      initialScore.total,
+      JSON.stringify(initialScore.breakdown)
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Contato cadastrado com sucesso',
+      id: result.lastInsertRowid
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.updateLead = (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name, phone, email, status, budget_max,
+      payment_method, has_trade_in, trade_in_details, interested_vehicle_id,
+      next_action_title, next_action_at
+    } = req.body;
+
+    const fields = [];
+    const params = [];
+
+    if (name !== undefined) { fields.push('name = ?'); params.push(name.trim()); }
+    if (phone !== undefined) { fields.push('phone = ?'); params.push(phone.toString().replace(/\D/g, '')); }
+    if (email !== undefined) { fields.push('email = ?'); params.push(email || null); }
+    if (status !== undefined) { fields.push('status = ?'); params.push(status); }
+    if (budget_max !== undefined) { fields.push('budget_max = ?'); params.push(budget_max ? parseFloat(budget_max) : null); }
+    if (payment_method !== undefined) { fields.push('payment_method = ?'); params.push(payment_method); }
+    if (has_trade_in !== undefined) { fields.push('has_trade_in = ?'); params.push(has_trade_in ? 1 : 0); }
+    if (trade_in_details !== undefined) { fields.push('trade_in_details = ?'); params.push(trade_in_details); }
+    if (interested_vehicle_id !== undefined) { fields.push('interested_vehicle_id = ?'); params.push(interested_vehicle_id ? parseInt(interested_vehicle_id, 10) : null); }
+    if (next_action_title !== undefined) { fields.push('next_action_title = ?'); params.push(next_action_title); }
+    if (next_action_at !== undefined) { fields.push('next_action_at = ?'); params.push(next_action_at); }
+
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+
+    params.push(id);
+    db.prepare(`UPDATE leads SET ${fields.join(', ')} WHERE id = ?`).run(...params);
+
+    res.json({ success: true, message: 'Dados do comprador atualizados com sucesso' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.deleteLead = (req, res) => {
+  try {
+    const { id } = req.params;
+    db.prepare('DELETE FROM leads WHERE id = ?').run(id);
+    res.json({ success: true, message: 'Contato removido com sucesso do funil' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.handlePortalLeadWebhook = async (req, res) => {
+  try {
+    const payload = req.body;
+    console.log('📬 [Portal Lead Recebido]', JSON.stringify(payload).substring(0, 200));
+
+    const name = payload.name || payload.nome || payload.lead_name || 'Comprador de Portal';
+    const phone = (payload.phone || payload.telefone || payload.contact || '').toString().replace(/\D/g, '');
+    const email = payload.email || null;
+    const portal = payload.portal || payload.source || payload.origem || 'Webmotors / Meta Ads';
+    const vehicleName = payload.vehicle || payload.veiculo || payload.carro || '';
+
+    if (!phone) {
+      return res.status(400).json({ success: false, error: 'Telefone do comprador é obrigatório' });
+    }
+
+    let vehicleId = null;
+    if (vehicleName) {
+      const car = db.prepare('SELECT id FROM vehicles WHERE model LIKE ? OR make LIKE ?').get(`%${vehicleName}%`, `%${vehicleName}%`);
+      if (car) vehicleId = car.id;
+    }
+
+    let lead = db.prepare('SELECT * FROM leads WHERE phone = ?').get(phone);
+    if (!lead) {
+      const stmt = db.prepare(`
+        INSERT INTO leads (name, phone, email, channel, status, interested_vehicle_id, source_campaign, score, last_inbound_at)
+        VALUES (?, ?, ?, ?, 'novo', ?, ?, 65, CURRENT_TIMESTAMP)
+      `);
+      const r = stmt.run(name, phone, email, portal.toLowerCase(), vehicleId, `Portal: ${portal}`);
+      lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(r.lastInsertRowid);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Lead recebido com sucesso do portal ${portal}`,
+      leadId: lead.id
+    });
+  } catch (error) {
+    console.error('Erro no webhook de portais:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 exports.getDashboardMetrics = (req, res) => {
   try {
     const totalVehicles = db.prepare("SELECT COUNT(*) as count, SUM(price) as total_value FROM vehicles WHERE status = 'disponivel'").get();

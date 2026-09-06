@@ -10,6 +10,8 @@ const apiRoutes = require('./src/routes/api');
 const webhookRoutes = require('./src/routes/webhook');
 const config = require('./src/config/ai-provider');
 
+const { requireApiKey } = require('./src/middleware/auth');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -22,8 +24,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Rotas da aplicação
-app.use('/api', apiRoutes);
 app.use('/api/webhook', webhookRoutes);
+app.use('/api', requireApiKey, apiRoutes);
 
 // Rota fallback para SPA
 app.get('*', (req, res) => {
