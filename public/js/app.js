@@ -46,13 +46,13 @@ function switchView(viewName) {
   });
 
   const titles = {
-    dashboard: { title: 'Dashboard & Vazamentos', subtitle: 'Visão executiva de receita em risco, leads e conversão' },
-    crm: { title: 'CRM & Lead Score (0-100)', subtitle: 'Acompanhe os clientes por pontuação de compra e estágio' },
-    tasks: { title: 'Tarefas & Próximas Ações', subtitle: 'Follow-ups operacionais e pendências da equipe de vendas' },
-    testdrives: { title: 'Agenda de Test-Drive', subtitle: 'Controle de visitas e agendamentos de clientes' },
-    vehicles: { title: 'Estoque de Veículos', subtitle: 'Gerencie o catálogo de carros disponíveis e fotos' },
-    simulator: { title: 'Simulador Multimodal WhatsApp', subtitle: 'Teste conversa com texto, áudio e fotos de avaliação de troca' },
-    settings: { title: 'Configurações & IA', subtitle: 'Ajuste chaves de API, modelos de IA e dados da concessionária' }
+    dashboard: { title: 'Cockpit de Vendas & Pátio', subtitle: 'Acompanhamento em tempo real de receita, estoque e oportunidades em risco' },
+    simulator: { title: 'Central de WhatsApp da Loja', subtitle: 'Atendimento aos clientes, simulações de financiamento e agendamentos automáticos' },
+    crm: { title: 'Funil de Vendas (CRM)', subtitle: 'Gestão visual de clientes desde o primeiro contato até a entrega das chaves' },
+    testdrives: { title: 'Agenda de Visitas & Test-Drive', subtitle: 'Clientes agendados para visitar o showroom hoje e nos próximos dias' },
+    tasks: { title: 'Tarefas da Equipe de Vendas', subtitle: 'Follow-ups pendentes, ligações e retornos agendados para os vendedores' },
+    vehicles: { title: 'Estoque do Showroom', subtitle: 'Catálogo de veículos da loja, fotos, preços e status no pátio' },
+    settings: { title: 'Dados da Concessionária', subtitle: 'Informações da loja, endereço do showroom, horários e WhatsApp de atendimento' }
   };
 
   if (titles[viewName]) {
@@ -460,8 +460,8 @@ async function resetSimulatorChat() {
       updateSimulatorScoreBar(25, { interesse: 5, prazo: 10, capacidade: 5, compromisso: 5 });
       document.getElementById('telemetryLogsContainer').innerHTML = `
         <div class="telemetry-empty">
-          <i class="fa-solid fa-terminal"></i>
-          <p>Sessão ativa com RAG Multimodal (Lead ID: #${currentLeadId}).</p>
+          <i class="fa-solid fa-comments"></i>
+          <p>Aguardando mensagens do cliente...<br>À medida que a conversa acontece, os veículos pesquisados, simulações e visitas aparecerão aqui.</p>
         </div>
       `;
     }
@@ -630,16 +630,77 @@ function renderTelemetryTools(tools, provider) {
   if (empty) empty.remove();
 
   tools.forEach(t => {
+    let actionTitle = 'Ação Comercial';
+    let iconClass = 'fa-solid fa-bolt';
+    let summaryHtml = '';
+
+    if (t.name === 'buscar_estoque') {
+      actionTitle = 'Consulta ao Estoque do Pátio';
+      iconClass = 'fa-solid fa-car-side';
+      const count = (t.result && t.result.veiculos) ? t.result.veiculos.length : 0;
+      summaryHtml = `
+        <div style="font-size: 0.85rem; color: #fff; margin-bottom: 4px;">
+          <strong>${count} veículo(s)</strong> localizado(s) no showroom.
+        </div>
+        <div style="font-size: 0.78rem; color: var(--text-secondary);">
+          Filtros: ${t.args.marca || 'Qualquer'} ${t.args.modelo || ''} ${t.args.tipoCarroceria ? `(${t.args.tipoCarroceria})` : ''} ${t.args.precoMax ? `até R$ ${Number(t.args.precoMax).toLocaleString('pt-BR')}` : ''}
+        </div>
+      `;
+    } else if (t.name === 'simular_financiamento') {
+      actionTitle = 'Cálculo de Financiamento Automático';
+      iconClass = 'fa-solid fa-calculator';
+      const sim = t.result?.simulacao || {};
+      summaryHtml = `
+        <div style="font-size: 0.85rem; color: #4ade80; margin-bottom: 4px;">
+          <strong>Entrada:</strong> R$ ${Number(sim.entrada || 0).toLocaleString('pt-BR')} | <strong>${sim.parcelas || 48}x</strong> de <strong>R$ ${Number(sim.valorParcela || 0).toLocaleString('pt-BR')}</strong>
+        </div>
+        <div style="font-size: 0.78rem; color: var(--text-secondary);">
+          Simulação apresentada instantaneamente ao comprador.
+        </div>
+      `;
+    } else if (t.name === 'agendar_test_drive') {
+      actionTitle = 'Visita / Test-Drive Agendado!';
+      iconClass = 'fa-solid fa-calendar-check';
+      summaryHtml = `
+        <div style="font-size: 0.85rem; color: #38bdf8; margin-bottom: 4px;">
+          <strong>Data/Horário:</strong> ${t.args.dataHora || 'Horário comercial'}
+        </div>
+        <div style="font-size: 0.78rem; color: var(--text-secondary);">
+          Vendedor da loja escalado para receber o cliente no showroom.
+        </div>
+      `;
+    } else if (t.name === 'salvar_qualificacao_lead') {
+      actionTitle = 'Ficha de Qualificação do Comprador';
+      iconClass = 'fa-solid fa-user-check';
+      summaryHtml = `
+        <div style="font-size: 0.82rem; color: #fff; line-height: 1.4;">
+          ${t.args.carroTroca ? `🚗 <strong>Possui carro na troca:</strong> ${t.args.carroTroca}<br>` : ''}
+          ${t.args.valorEntrada ? `💵 <strong>Entrada disponível:</strong> R$ ${Number(t.args.valorEntrada).toLocaleString('pt-BR')}<br>` : ''}
+          ${t.args.urgenciaCompra ? `⏱️ <strong>Prazo de compra:</strong> ${t.args.urgenciaCompra}` : ''}
+        </div>
+      `;
+    } else {
+      actionTitle = 'Atendimento ao Cliente';
+      iconClass = 'fa-solid fa-check-double';
+      summaryHtml = `<div style="font-size: 0.8rem; color: var(--text-secondary);">${JSON.stringify(t.args)}</div>`;
+    }
+
     const logItem = document.createElement('div');
     logItem.className = 'tool-event';
+    logItem.style.borderLeft = '3px solid var(--accent-cyan)';
+    logItem.style.background = 'rgba(255, 255, 255, 0.03)';
+    logItem.style.padding = '10px 14px';
+    logItem.style.borderRadius = '8px';
+    logItem.style.marginBottom = '8px';
+
     logItem.innerHTML = `
-      <div class="tool-event-title">
-        <i class="fa-solid fa-code"></i> TOOL: <code>${t.name}()</code> [${provider}]
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+        <span style="font-size: 0.82rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
+          <i class="${iconClass}" style="color: var(--accent-cyan);"></i> ${actionTitle}
+        </span>
+        <span style="font-size: 0.7rem; color: var(--text-muted);">${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
-      <div style="margin-bottom: 4px; color: var(--text-secondary); font-size: 0.72rem;">Parâmetros:</div>
-      <div class="tool-json">${JSON.stringify(t.args, null, 2)}</div>
-      <div style="margin: 6px 0 4px 0; color: var(--text-secondary); font-size: 0.72rem;">Retorno do Banco / IA:</div>
-      <div class="tool-json" style="color: #4ade80;">${JSON.stringify(t.result, null, 2)}</div>
+      ${summaryHtml}
     `;
     container.appendChild(logItem);
   });

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AutoLead AI — Cockpit de Vendas & Gestão Automotiva</title>
+  <title>AutoLead — Cockpit Comercial da Concessionária</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -16,43 +16,44 @@
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-icon">
-          <i class="fa-solid fa-gauge-high"></i>
+          <i class="fa-solid fa-car-rear"></i>
         </div>
         <div class="brand-text">
-          <h2>AutoLead<span>AI</span></h2>
+          <h2>Auto<span>Lead</span></h2>
           <p id="dealershipSubtitle">AutoPrime Seminovos</p>
         </div>
       </div>
 
       <nav class="nav-menu">
         <button class="nav-item active" data-view="dashboard">
-          <i class="fa-solid fa-chart-line"></i>
-          <span>Dashboard & Vazamentos</span>
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>Visão Geral & Alertas</span>
+        </button>
+        <button class="nav-item highlight" data-view="simulator">
+          <i class="fa-brands fa-whatsapp"></i>
+          <span>WhatsApp Comercial</span>
+          <span class="nav-live-dot"></span>
         </button>
         <button class="nav-item" data-view="crm">
-          <i class="fa-solid fa-users"></i>
-          <span>CRM & Lead Score</span>
-        </button>
-        <button class="nav-item" data-view="tasks">
-          <i class="fa-solid fa-list-check"></i>
-          <span>Tarefas & Follow-up</span>
-          <span class="nav-badge" id="navOverdueTasksBadge" style="display: none;">0</span>
+          <i class="fa-solid fa-filter-circle-dollar"></i>
+          <span>Funil de Vendas</span>
         </button>
         <button class="nav-item" data-view="testdrives">
           <i class="fa-solid fa-calendar-check"></i>
           <span>Agenda de Test-Drive</span>
         </button>
-        <button class="nav-item" data-view="vehicles">
-          <i class="fa-solid fa-car"></i>
-          <span>Estoque de Veículos</span>
+        <button class="nav-item" data-view="tasks">
+          <i class="fa-solid fa-clipboard-check"></i>
+          <span>Follow-up & Tarefas</span>
+          <span class="nav-badge" id="navOverdueTasksBadge" style="display: none;">0</span>
         </button>
-        <button class="nav-item highlight" data-view="simulator">
-          <i class="fa-brands fa-whatsapp"></i>
-          <span>Simulador Multimodal</span>
+        <button class="nav-item" data-view="vehicles">
+          <i class="fa-solid fa-warehouse"></i>
+          <span>Estoque do Showroom</span>
         </button>
         <button class="nav-item" data-view="settings">
-          <i class="fa-solid fa-sliders"></i>
-          <span>Configurações & IA</span>
+          <i class="fa-solid fa-store"></i>
+          <span>Configurações da Loja</span>
         </button>
       </nav>
 
@@ -60,8 +61,8 @@
         <div class="ai-status-card">
           <div class="status-indicator online"></div>
           <div class="ai-status-info">
-            <span class="ai-status-label">Cérebro IA</span>
-            <span class="ai-status-provider" id="sidebarAiProvider">Carregando...</span>
+            <span class="ai-status-label">Atendente Virtual</span>
+            <span class="ai-status-provider">Ativo 24 Horas</span>
           </div>
         </div>
       </div>
@@ -72,38 +73,33 @@
       <!-- Topbar Header -->
       <header class="topbar">
         <div class="topbar-left">
-          <h1 id="pageTitle">Dashboard Geral & Vazamentos</h1>
-          <p id="pageSubtitle">Visão executiva de receita em risco, leads e conversão</p>
+          <h1 id="pageTitle">Visão Geral da Loja</h1>
+          <p id="pageSubtitle">Acompanhamento de vendas, estoque e clientes em atendimento</p>
         </div>
         <div class="topbar-actions">
           <button class="btn btn-outline" onclick="openCsvImportModal()">
-            <i class="fa-solid fa-file-csv"></i> Importar CSV
-          </button>
-          <button class="btn btn-outline" onclick="openSimulatorModal()">
-            <i class="fa-solid fa-play"></i> Testar IA
+            <i class="fa-solid fa-file-import"></i> Importar Leads
           </button>
           <button class="btn btn-primary" onclick="openNewVehicleModal()">
-            <i class="fa-solid fa-plus"></i> Novo Veículo
+            <i class="fa-solid fa-plus"></i> Cadastrar Veículo
           </button>
         </div>
       </header>
 
-      <!-- VIEW: Dashboard & Vazamentos -->
+      <!-- VIEW: Visão Geral & Alertas de Venda -->
       <section id="view-dashboard" class="content-view active">
-        <!-- Banner de Vazamento de Receita (Prompt 1 AutoPilot Ops) -->
+        <!-- Banner de Clientes que Precisam de Atenção Imediata -->
         <div class="leakage-banner" id="leakageBanner">
           <div class="leakage-icon">
-            <i class="fa-solid fa-triangle-exclamation"></i>
+            <i class="fa-solid fa-bell-concierge"></i>
           </div>
           <div class="leakage-content">
             <div class="leakage-title-row">
-              <h4>Vazamentos Comerciais Detectados no Funil</h4>
+              <h4>Oportunidades Comerciais com Atenção Imediata</h4>
               <span class="leakage-badge" id="leakagePotentialValue">Calculando...</span>
             </div>
-            <p id="leakageSummaryText">Analisando tempo de resposta e leads sem próxima ação...</p>
-            <div class="leakage-tags" id="leakageAlertTags">
-              <!-- Renderizado dinamicamente via JS -->
-            </div>
+            <p id="leakageSummaryText">Verificando mensagens pendentes e visitas para confirmar...</p>
+            <div class="leakage-tags" id="leakageAlertTags"></div>
           </div>
         </div>
 
@@ -114,9 +110,9 @@
               <i class="fa-solid fa-car-side"></i>
             </div>
             <div class="stat-data">
-              <span class="stat-title">Estoque Ativo</span>
+              <span class="stat-title">Estoque no Pátio</span>
               <h3 id="statTotalVehicles">0</h3>
-              <span class="stat-badge success">Disponíveis</span>
+              <span class="stat-badge success">Veículos Disponíveis</span>
             </div>
           </div>
 
@@ -127,63 +123,142 @@
             <div class="stat-data">
               <span class="stat-title">Valor do Pátio</span>
               <h3 id="statInventoryValue">R$ 0</h3>
-              <span class="stat-badge neutral">Preço de Venda</span>
+              <span class="stat-badge neutral">Preço Total de Tabela</span>
             </div>
           </div>
 
           <div class="stat-card">
             <div class="stat-icon leads-icon">
-              <i class="fa-solid fa-fire"></i>
+              <i class="fa-solid fa-users-viewfinder"></i>
             </div>
             <div class="stat-data">
-              <span class="stat-title">Total de Leads</span>
+              <span class="stat-title">Clientes Ativos</span>
               <h3 id="statTotalLeads">0</h3>
-              <span class="stat-badge info" id="statQualifiedLeads">0 Qualificados</span>
+              <span class="stat-badge info" id="statQualifiedLeads">0 com Potencial de Compra</span>
             </div>
           </div>
 
           <div class="stat-card">
             <div class="stat-icon testdrive-icon">
-              <i class="fa-solid fa-calendar-days"></i>
+              <i class="fa-solid fa-calendar-check"></i>
             </div>
             <div class="stat-data">
-              <span class="stat-title">Test Drives Marcados</span>
+              <span class="stat-title">Visitas Marcadas</span>
               <h3 id="statTestDrives">0</h3>
-              <span class="stat-badge warning">Agendados pela IA</span>
+              <span class="stat-badge warning">Test Drives Agendados</span>
             </div>
           </div>
         </div>
 
-        <!-- Funil e Próximos Test Drives -->
+        <!-- Funil Comercial & Próximas Visitas -->
         <div class="dashboard-columns">
           <div class="card funnel-card">
             <div class="card-header">
-              <h3><i class="fa-solid fa-filter"></i> Funil de Vendas do AI SDR</h3>
-              <span class="card-hint">Etapas de conversão dos leads</span>
+              <h3><i class="fa-solid fa-chart-line"></i> Funil Comercial da Concessionária</h3>
+              <span class="card-hint">Conversão por etapa</span>
             </div>
             <div class="pipeline-bars" id="pipelineBars"></div>
           </div>
 
           <div class="card quick-actions-card">
             <div class="card-header">
-              <h3><i class="fa-solid fa-bolt"></i> Próximos Test Drives</h3>
-              <button class="btn-link" onclick="switchView('testdrives')">Ver todos</button>
+              <h3><i class="fa-solid fa-calendar-day"></i> Próximos Test Drives no Showroom</h3>
+              <button class="btn-link" onclick="switchView('testdrives')">Ver agenda completa</button>
             </div>
             <div class="upcoming-list" id="upcomingTestDrives"></div>
           </div>
         </div>
       </section>
 
-      <!-- VIEW: CRM & Kanban de Leads (com Lead Score) -->
+      <!-- VIEW: Central WhatsApp & Atendimento ao Vivo -->
+      <section id="view-simulator" class="content-view">
+        <div class="simulator-layout">
+          <!-- Smartphone WhatsApp Frame -->
+          <div class="phone-frame">
+            <div class="phone-notch"></div>
+            <div class="whatsapp-screen">
+              <!-- Header WhatsApp -->
+              <div class="wa-header">
+                <div class="wa-contact-info">
+                  <div class="wa-avatar">
+                    <i class="fa-solid fa-user-tie"></i>
+                  </div>
+                  <div class="wa-details">
+                    <h4 id="waAttendantTitle">Lucas | Consultor AutoPrime</h4>
+                    <span id="waTypingStatus">online • Atendimento Comercial</span>
+                  </div>
+                </div>
+                <div class="wa-actions">
+                  <button title="Reiniciar conversa de demonstração" onclick="resetSimulatorChat()">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Termômetro de Compra do Cliente -->
+              <div class="active-lead-score-bar" id="activeLeadScoreBar">
+                <span id="activeScoreBadge"><i class="fa-solid fa-fire"></i> Potencial de Compra: 25%</span>
+                <small id="activeScoreDetail">Interesse: Baixo | Prazo: Pesquisa | Entrada: Não informada</small>
+              </div>
+
+              <!-- Mensagens -->
+              <div class="wa-messages" id="waMessagesContainer"></div>
+
+              <!-- Ações Rápidas de Cliente -->
+              <div class="multimodal-bar">
+                <button class="btn-multimodal" onclick="simulateSendAudio()" title="Simular cliente enviando áudio">
+                  <i class="fa-solid fa-microphone"></i> Cliente manda Áudio
+                </button>
+                <button class="btn-multimodal" onclick="simulateSendCarPhoto()" title="Simular cliente enviando foto do carro para troca">
+                  <i class="fa-solid fa-camera"></i> Foto de Carro na Troca
+                </button>
+              </div>
+
+              <div class="wa-chips">
+                <button class="chip" onclick="sendQuickPrompt('Olá! Vocês têm algum SUV automático até 110 mil no estoque?')">SUVs até 110k</button>
+                <button class="chip" onclick="sendQuickPrompt('Gostei do Renegade! Posso agendar um test drive amanhã às 15h?')">Marcar Test Drive</button>
+                <button class="chip" onclick="sendQuickPrompt('Se eu der 30 mil de entrada no Renegade, quanto fica a parcela em 48x?')">Simular Parcela</button>
+                <button class="chip" onclick="sendQuickPrompt('Vocês aceitam meu Onix 2019 como entrada na troca?')">Avaliar Troca</button>
+              </div>
+
+              <!-- Input -->
+              <form class="wa-footer" id="waChatForm" onsubmit="handleSendUserMessage(event)">
+                <input type="text" id="waChatInput" placeholder="Digite uma mensagem como cliente..." autocomplete="off" required>
+                <button type="submit" class="wa-send-btn" id="waSendBtn">
+                  <i class="fa-solid fa-paper-plane"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Painel Lateral de Inteligência Comercial -->
+          <div class="telemetry-panel">
+            <div class="telemetry-header">
+              <h3><i class="fa-solid fa-clipboard-user"></i> Resumo Comercial do Atendimento</h3>
+              <span class="telemetry-tag" id="telemetryProviderBadge">Atendimento Automático</span>
+            </div>
+            <p class="telemetry-desc">Acompanhe em tempo real as consultas de estoque, cálculos e agendamentos realizados para este cliente.</p>
+
+            <div class="telemetry-logs" id="telemetryLogsContainer">
+              <div class="telemetry-empty">
+                <i class="fa-solid fa-comments"></i>
+                <p>Nenhuma mensagem enviada nesta sessão ainda.<br>Interaja no WhatsApp ao lado para ver as ações automáticas da loja.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: Funil de Vendas (CRM) -->
       <section id="view-crm" class="content-view">
         <div class="kanban-header-actions">
           <div class="score-legend">
-            <span class="legend-item"><i class="fa-solid fa-fire" style="color: #ef4444;"></i> 75-100: Lead Quente</span>
-            <span class="legend-item"><i class="fa-solid fa-bolt" style="color: #00d2ff;"></i> 50-74: Qualificado</span>
-            <span class="legend-item"><i class="fa-solid fa-circle-half-stroke" style="color: #f59e0b;"></i> 25-49: Interessado</span>
+            <span class="legend-item"><i class="fa-solid fa-fire" style="color: #ef4444;"></i> Lead Quente (75-100 pts)</span>
+            <span class="legend-item"><i class="fa-solid fa-bolt" style="color: #00d2ff;"></i> Oportunidade (50-74 pts)</span>
+            <span class="legend-item"><i class="fa-solid fa-circle-half-stroke" style="color: #f59e0b;"></i> Em Pesquisa (25-49 pts)</span>
           </div>
           <button class="btn btn-outline btn-sm" onclick="openCsvImportModal()">
-            <i class="fa-solid fa-upload"></i> Importar Planilha CSV
+            <i class="fa-solid fa-file-arrow-up"></i> Importar Planilha de Leads
           </button>
         </div>
 
@@ -191,7 +266,7 @@
           <div class="kanban-col" data-stage="novo">
             <div class="kanban-col-header">
               <span class="col-indicator new"></span>
-              <h4>Novos Leads</h4>
+              <h4>Novos Contatos</h4>
               <span class="count-badge" id="count-novo">0</span>
             </div>
             <div class="kanban-cards" id="col-novo"></div>
@@ -209,7 +284,7 @@
           <div class="kanban-col" data-stage="test_drive">
             <div class="kanban-col-header">
               <span class="col-indicator testdrive"></span>
-              <h4>Test-Drive Agendado</h4>
+              <h4>Test-Drive / Visita</h4>
               <span class="count-badge" id="count-test_drive">0</span>
             </div>
             <div class="kanban-cards" id="col-test_drive"></div>
@@ -218,7 +293,7 @@
           <div class="kanban-col" data-stage="proposta">
             <div class="kanban-col-header">
               <span class="col-indicator proposal"></span>
-              <h4>Proposta / Negociação</h4>
+              <h4>Proposta em Negociação</h4>
               <span class="count-badge" id="count-proposta">0</span>
             </div>
             <div class="kanban-cards" id="col-proposta"></div>
@@ -227,7 +302,7 @@
           <div class="kanban-col" data-stage="fechado">
             <div class="kanban-col-header">
               <span class="col-indicator won"></span>
-              <h4>Venda Fechada 🎉</h4>
+              <h4>Venda Concluída 🎉</h4>
               <span class="count-badge" id="count-fechado">0</span>
             </div>
             <div class="kanban-cards" id="col-fechado"></div>
@@ -235,28 +310,7 @@
         </div>
       </section>
 
-      <!-- VIEW: Tarefas & Follow-up -->
-      <section id="view-tasks" class="content-view">
-        <div class="tasks-toolbar">
-          <div class="filter-group">
-            <select id="taskStatusFilter" onchange="loadTasks()">
-              <option value="">Todas as Tarefas</option>
-              <option value="pendente">Pendentes</option>
-              <option value="atrasada">Atrasadas (Vazamento)</option>
-              <option value="concluida">Concluídas</option>
-            </select>
-          </div>
-          <button class="btn btn-primary" onclick="openNewTaskModal()">
-            <i class="fa-solid fa-plus"></i> Nova Tarefa
-          </button>
-        </div>
-
-        <div class="tasks-grid" id="tasksContainer">
-          <!-- Renderizado via JS -->
-        </div>
-      </section>
-
-      <!-- VIEW: Agenda de Test-Drives -->
+      <!-- VIEW: Agenda de Test-Drives & Visitas -->
       <section id="view-testdrives" class="content-view">
         <div class="table-container">
           <table class="data-table">
@@ -265,8 +319,8 @@
                 <th>Data & Horário</th>
                 <th>Cliente</th>
                 <th>Telefone</th>
-                <th>Veículo</th>
-                <th>Consultor</th>
+                <th>Veículo Escolhido</th>
+                <th>Vendedor Responsável</th>
                 <th>Status</th>
                 <th>Ações</th>
               </tr>
@@ -276,7 +330,26 @@
         </div>
       </section>
 
-      <!-- VIEW: Estoque de Veículos -->
+      <!-- VIEW: Follow-up & Tarefas do Dia -->
+      <section id="view-tasks" class="content-view">
+        <div class="tasks-toolbar">
+          <div class="filter-group">
+            <select id="taskStatusFilter" onchange="loadTasks()">
+              <option value="">Todas as Tarefas</option>
+              <option value="pendente">Pendentes para Hoje</option>
+              <option value="atrasada">Atrasadas (Atenção Urgente)</option>
+              <option value="concluida">Concluídas</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="openNewTaskModal()">
+            <i class="fa-solid fa-plus"></i> Nova Tarefa de Follow-up
+          </button>
+        </div>
+
+        <div class="tasks-grid" id="tasksContainer"></div>
+      </section>
+
+      <!-- VIEW: Estoque do Showroom -->
       <section id="view-vehicles" class="content-view">
         <div class="filter-bar">
           <div class="search-box">
@@ -285,14 +358,14 @@
           </div>
           <div class="filter-group">
             <select id="bodyTypeFilter">
-              <option value="">Todas Carrocerias</option>
+              <option value="">Todas as Carrocerias</option>
               <option value="SUV">SUV</option>
               <option value="Sedan">Sedan</option>
               <option value="Hatch">Hatch</option>
             </select>
             <select id="statusFilter">
-              <option value="">Todos Status</option>
-              <option value="disponivel">Disponível</option>
+              <option value="">Todos os Status</option>
+              <option value="disponivel">Disponível no Showroom</option>
               <option value="reservado">Reservado</option>
               <option value="vendido">Vendido</option>
             </select>
@@ -302,151 +375,69 @@
         <div class="vehicles-grid" id="vehiclesContainer"></div>
       </section>
 
-      <!-- VIEW: Simulador Multimodal WhatsApp & Telemetria -->
-      <section id="view-simulator" class="content-view">
-        <div class="simulator-layout">
-          <!-- WhatsApp Phone Frame -->
-          <div class="phone-frame">
-            <div class="phone-notch"></div>
-            <div class="whatsapp-screen">
-              <!-- Header WhatsApp -->
-              <div class="wa-header">
-                <div class="wa-contact-info">
-                  <div class="wa-avatar">
-                    <i class="fa-solid fa-robot"></i>
-                  </div>
-                  <div class="wa-details">
-                    <h4>Lucas | AutoLead AI</h4>
-                    <span id="waTypingStatus">online</span>
-                  </div>
-                </div>
-                <div class="wa-actions">
-                  <button title="Reiniciar conversa" onclick="resetSimulatorChat()">
-                    <i class="fa-solid fa-arrows-rotate"></i>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Score Pill Flutuante do Lead Ativo -->
-              <div class="active-lead-score-bar" id="activeLeadScoreBar">
-                <span id="activeScoreBadge"><i class="fa-solid fa-fire"></i> Score: 25 pts</span>
-                <small id="activeScoreDetail">Interesse: 5 | Prazo: 10 | Capacidade: 5 | Compromisso: 5</small>
-              </div>
-
-              <!-- Messages Container -->
-              <div class="wa-messages" id="waMessagesContainer"></div>
-
-              <!-- Multimodal Simulation Bar (Áudio & Foto) -->
-              <div class="multimodal-bar">
-                <button class="btn-multimodal" onclick="simulateSendAudio()" title="Simular Áudio do Cliente">
-                  <i class="fa-solid fa-microphone"></i> Áudio
-                </button>
-                <button class="btn-multimodal" onclick="simulateSendCarPhoto()" title="Simular Envio de Foto do Carro na Troca">
-                  <i class="fa-solid fa-camera"></i> Foto da Troca
-                </button>
-              </div>
-
-              <!-- Quick Prompts Chips -->
-              <div class="wa-chips">
-                <button class="chip" onclick="sendQuickPrompt('Vocês têm algum SUV automático até 110 mil?')">SUV até 110k</button>
-                <button class="chip" onclick="sendQuickPrompt('Gostei do Renegade! Quero agendar test drive amanhã às 15h')">Test Drive</button>
-                <button class="chip" onclick="sendQuickPrompt('Se eu der 30 mil de entrada, quanto fica em 48x?')">Simular 48x</button>
-                <button class="chip" onclick="sendQuickPrompt('Vocês pegam meu Onix 2019 na troca?')">Troca</button>
-              </div>
-
-              <!-- Input Footer -->
-              <form class="wa-footer" id="waChatForm" onsubmit="handleSendUserMessage(event)">
-                <input type="text" id="waChatInput" placeholder="Digite uma mensagem..." autocomplete="off" required>
-                <button type="submit" class="wa-send-btn" id="waSendBtn">
-                  <i class="fa-solid fa-paper-plane"></i>
-                </button>
-              </form>
-            </div>
-          </div>
-
-          <!-- Telemetry / Inspection Panel -->
-          <div class="telemetry-panel">
-            <div class="telemetry-header">
-              <h3><i class="fa-solid fa-microchip"></i> Telemetria de IA & RAG Multimodal</h3>
-              <span class="telemetry-tag" id="telemetryProviderBadge">Gemini 2.0 Flash</span>
-            </div>
-            <p class="telemetry-desc">Acompanhe a transcrição de áudios, inspeção visual de fotos e chamadas nativas de ferramentas (Function Calling).</p>
-
-            <div class="telemetry-logs" id="telemetryLogsContainer">
-              <div class="telemetry-empty">
-                <i class="fa-solid fa-terminal"></i>
-                <p>Envie uma mensagem, áudio ou foto no simulador para ver o raciocínio da IA em tempo real.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- VIEW: Configurações -->
+      <!-- VIEW: Configurações da Loja & Atendimento -->
       <section id="view-settings" class="content-view">
         <div class="settings-card">
-          <h3><i class="fa-solid fa-robot"></i> Provedor de Inteligência Artificial</h3>
-          <p class="settings-desc">Escolha qual provedor você deseja utilizar para o cérebro próprio do agente.</p>
+          <h3><i class="fa-solid fa-store"></i> Dados da Concessionária / Loja</h3>
+          <p class="settings-desc">Essas informações são usadas pelo consultor virtual ao responder dúvidas de clientes e agendar visitas.</p>
 
           <form id="settingsForm" onsubmit="handleSaveSettings(event)">
-            <div class="form-group">
-              <label>Provedor Ativo:</label>
-              <div class="radio-cards">
-                <label class="radio-card">
-                  <input type="radio" name="aiProvider" value="gemini" checked>
-                  <div class="radio-content">
-                    <span class="provider-name"><i class="fa-brands fa-google"></i> Google Gemini</span>
-                    <small>Gemini 2.0 Flash (Multimodal nativo com áudio e visão)</small>
-                  </div>
-                </label>
-                <label class="radio-card">
-                  <input type="radio" name="aiProvider" value="openai">
-                  <div class="radio-content">
-                    <span class="provider-name"><i class="fa-solid fa-brain"></i> OpenAI</span>
-                    <small>GPT-4o-mini (Excelente com Function Calling)</small>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="geminiApiKey">Google Gemini API Key:</label>
-                <input type="password" id="geminiApiKey" placeholder="AIzaSy...">
-              </div>
-              <div class="form-group">
-                <label for="openaiApiKey">OpenAI API Key:</label>
-                <input type="password" id="openaiApiKey" placeholder="sk-proj-...">
-              </div>
-            </div>
-
-            <hr class="settings-divider">
-
-            <h3><i class="fa-solid fa-store"></i> Informações da Concessionária</h3>
             <div class="form-row">
               <div class="form-group">
                 <label for="dealershipNameInput">Nome da Loja:</label>
                 <input type="text" id="dealershipNameInput" value="AutoPrime Seminovos">
               </div>
               <div class="form-group">
-                <label for="dealershipPhoneInput">WhatsApp Comercial:</label>
+                <label for="dealershipPhoneInput">WhatsApp de Vendas:</label>
                 <input type="text" id="dealershipPhoneInput" value="(11) 99999-8888">
               </div>
             </div>
 
             <div class="form-group">
-              <label for="dealershipAddressInput">Endereço da Loja:</label>
+              <label for="dealershipAddressInput">Endereço do Showroom:</label>
               <input type="text" id="dealershipAddressInput" value="Av. dos Bandeirantes, 1500 - São Paulo, SP">
             </div>
 
-            <div class="webhook-info-box">
-              <h4><i class="fa-solid fa-link"></i> URL do Webhook do WhatsApp (Pronto para Evolution API ou Z-API)</h4>
-              <p>Configure esta URL na sua instância da Evolution API ou Z-API para receber mensagens reais de clientes:</p>
-              <code id="webhookUrlDisplay">http://localhost:3000/api/webhook/whatsapp</code>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Horário de Atendimento:</label>
+                <input type="text" id="dealershipHoursInput" value="Segunda a Sexta: 08h às 19h | Sábado: 09h às 16h">
+              </div>
+              <div class="form-group">
+                <label>Garantia dos Veículos:</label>
+                <input type="text" id="dealershipWarrantyInput" value="1 Ano de Garantia de Motor e Câmbio + Laudo Cautelar Aprovado">
+              </div>
             </div>
 
-            <button type="submit" class="btn btn-primary">
-              <i class="fa-solid fa-floppy-disk"></i> Salvar Configurações
+            <details style="margin-top: 24px; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; background: rgba(0,0,0,0.2);">
+              <summary style="cursor: pointer; font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-screwdriver-wrench"></i> Integração Técnica do WhatsApp (Configuração de TI / Suporte)
+              </summary>
+              <div style="margin-top: 14px;">
+                <p class="settings-desc">Conecte o número de atendimento da sua loja para responder clientes reais via WhatsApp Web / API (Evolution API ou Z-API):</p>
+                <div class="webhook-info-box" style="margin-bottom: 14px;">
+                  <h4><i class="fa-solid fa-link"></i> Link do Webhook de Atendimento</h4>
+                  <code id="webhookUrlDisplay">http://localhost:3000/api/webhook/whatsapp</code>
+                </div>
+
+                <div class="form-row" style="opacity: 0.85;">
+                  <div class="form-group">
+                    <label for="geminiApiKey">Chave de IA (Opcional - Gemini ou OpenAI):</label>
+                    <input type="password" id="geminiApiKey" placeholder="Deixe em branco para usar o motor padrão...">
+                  </div>
+                  <div class="form-group">
+                    <label>Provedor de IA Ativo:</label>
+                    <select id="aiProviderSelect">
+                      <option value="gemini">Google Gemini (Recomendado)</option>
+                      <option value="openai">OpenAI (GPT-4o-mini)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <button type="submit" class="btn btn-primary" style="margin-top: 14px;">
+              <i class="fa-solid fa-floppy-disk"></i> Salvar Configurações da Loja
             </button>
           </form>
         </div>
@@ -454,17 +445,17 @@
     </main>
   </div>
 
-  <!-- Modal: Importar Leads CSV -->
+  <!-- Modal: Importação de Planilha CSV -->
   <div class="modal" id="csvModal">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h3><i class="fa-solid fa-file-csv"></i> Importar Leads via Planilha CSV</h3>
+          <h3><i class="fa-solid fa-file-csv"></i> Importar Planilha de Leads (Webmotors, iCarros, Meta)</h3>
           <button class="modal-close" onclick="closeCsvModal()">&times;</button>
         </div>
         <div style="padding: 24px;">
-          <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">
-            Suba uma lista de leads exportada da <strong>Webmotors, iCarros ou Facebook Ads</strong>. O sistema importará, agendará o primeiro follow-up e calculará o Lead Score automaticamente.
+          <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 14px;">
+            Cole abaixo a lista de contatos exportada dos portais de anúncios. O sistema organizará os leads no funil, calculará o potencial de compra e agendará o primeiro contato da equipe.
           </p>
           <div class="csv-dropzone">
             <textarea id="csvInputText" rows="6" placeholder="nome,telefone,email,carro,orcamento,origem&#10;Carlos Silva,1199998888,carlos@gmail.com,Corolla,120000,Webmotors&#10;Juliana Paes,1198887777,juliana@empresa.com,Jeep Renegade,95000,Instagram"></textarea>
@@ -472,7 +463,7 @@
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
             <button class="btn btn-outline btn-sm" onclick="loadExampleCsv()">Carregar Exemplo de Teste</button>
             <button class="btn btn-primary" onclick="submitCsvImport()">
-              <i class="fa-solid fa-cloud-arrow-up"></i> Iniciar Importação
+              <i class="fa-solid fa-cloud-arrow-up"></i> Importar para o Funil
             </button>
           </div>
           <div id="csvImportResult" style="margin-top: 16px; display: none;"></div>
@@ -481,12 +472,12 @@
     </div>
   </div>
 
-  <!-- Modal: Novo Veículo -->
+  <!-- Modal: Cadastro de Veículo -->
   <div class="modal" id="vehicleModal">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h3 id="vehicleModalTitle">Cadastrar Novo Veículo</h3>
+          <h3 id="vehicleModalTitle">Cadastrar Veículo no Showroom</h3>
           <button class="modal-close" onclick="closeVehicleModal()">&times;</button>
         </div>
         <form id="vehicleForm" onsubmit="handleSaveVehicle(event)">
@@ -502,25 +493,25 @@
             </div>
           </div>
           <div class="form-group">
-            <label>Versão</label>
+            <label>Versão / Motorização</label>
             <input type="text" id="vVersion" placeholder="Ex: Longitude 1.3 Turbo Flex">
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>Ano Fab / Mod</label>
+              <label>Ano Fabricação / Modelo</label>
               <div style="display: flex; gap: 8px;">
                 <input type="number" id="vYearFab" value="2022">
                 <input type="number" id="vYearModel" value="2023">
               </div>
             </div>
             <div class="form-group">
-              <label>Preço (R$) *</label>
+              <label>Preço de Venda (R$) *</label>
               <input type="number" id="vPrice" placeholder="98900" required>
             </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline" onclick="closeVehicleModal()">Cancelar</button>
-            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Salvar</button>
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Salvar Veículo</button>
           </div>
         </form>
       </div>
