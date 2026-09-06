@@ -188,6 +188,12 @@ function getWhatsAppStatus() {
   };
 }
 
+// Se já houver credenciais salvas, inicializa a conexão automaticamente
+if (fs.existsSync(path.join(sessionDir, 'creds.json'))) {
+  console.log('🔄 [WhatsApp] Sessão salva encontrada. Conectando automaticamente...');
+  setTimeout(() => startWhatsApp(), 1000);
+}
+
 module.exports = {
   startWhatsApp,
   disconnectWhatsApp,

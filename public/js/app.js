@@ -283,6 +283,10 @@ function renderKanban(leads) {
   stages.forEach(s => {
     const badge = document.getElementById(`count-${s}`);
     if (badge) badge.textContent = counts[s];
+    const col = columns[s];
+    if (col && counts[s] === 0) {
+      col.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.76rem; padding: 24px 8px; border: 1px dashed rgba(255,255,255,0.08); border-radius: 8px; margin-top: 4px;">Nenhum cliente nesta etapa</div>';
+    }
   });
 }
 
@@ -777,7 +781,22 @@ async function loadVehicles() {
 function renderVehiclesGrid(vehicles) {
   const container = document.getElementById('vehiclesContainer');
   if (!container) return;
-  container.innerHTML = vehicles.map(v => {
+
+  if (!vehicles || vehicles.length === 0) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; background: var(--bg-card); border-radius: var(--radius-lg); border: 1px dashed var(--border-color);">
+        <i class="fa-solid fa-car-side" style="font-size: 3rem; color: var(--text-muted); margin-bottom: 16px; display: block;"></i>
+        <h3 style="color: #fff; margin-bottom: 8px;">Estoque do Showroom Zerado</h3>
+        <p style="color: var(--text-secondary); max-width: 440px; margin: 0 auto 20px; font-size: 0.9rem;">
+          Nenhum veículo cadastrado ainda. Cadastre os veículos reais da loja ou sincronize diretamente pelo ERP da concessionária.
+        </p>
+        <button class="btn btn-primary" onclick="openNewVehicleModal()">
+          <i class="fa-solid fa-plus"></i> Cadastrar Primeiro Veículo
+        </button>
+      </div>
+    `;
+    return;
+  }
     const photo = (v.images && v.images.length > 0) ? v.images[0] : 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800';
     return `
       <div class="vehicle-card">
