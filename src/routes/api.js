@@ -8,6 +8,7 @@ const chatController = require('../controllers/chatController');
 const taskController = require('../controllers/taskController');
 const importController = require('../controllers/importController');
 const config = require('../config/ai-provider');
+const db = require('../config/database');
 
 // Rotas de Veículos (Estoque)
 router.get('/vehicles', vehicleController.listVehicles);
@@ -36,12 +37,71 @@ router.post('/imports/leads', importController.importLeadsCsv);
 router.get('/test-drives', bookingController.listTestDrives);
 router.patch('/test-drives/:id/status', bookingController.updateTestDriveStatus);
 
-// Rotas do Chat / Simulador Multimodal
+// Rotas do Chat / Atendimento
 router.post('/chat/send', chatController.sendMessage);
 router.post('/chat/send-audio', chatController.sendAudioMessage);
 router.post('/chat/send-photo', chatController.sendVehiclePhoto);
 router.get('/chat/messages/:leadId', chatController.getMessages);
 router.post('/chat/reset', chatController.resetSimulator);
+
+// Rotas de Conexão WhatsApp por QR Code Nativamente
+const whatsappService = require('../services/whatsappService');
+
+router.get('/whatsapp/status', (req, res) => {
+  res.json({ success: true, data: whatsappService.getWhatsAppStatus() });
+});
+
+router.post('/whatsapp/connect', (req, res) => {
+  whatsappService.startWhatsApp();
+  res.json({ success: true, message: 'Inicializando leitor de QR Code...' });
+});
+
+router.post('/whatsapp/disconnect', async (req, res) => {
+  const result = await whatsappService.disconnectWhatsApp();
+  res.json(result);
+});
+
+// Rota Universal para ERPs de Carros e Motos (Webhook ou API)
+router.post('/integrations/inventory', (req, res) => {
+  try {
+    const payload = req.body;
+    const vehiclesList = Array.isArray(payload) ? payload : (payload.vehicles || [payload]);
+
+    const stmt = db.prepare(`
+      INSERT INTO vehicles (
+        make, model, version, year_fab, year_model, price, mileage,
+        transmission, fuel, color, plate_end, body_type, features, images, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    let importedCount = 0;
+    for (const v of vehiclesList) {
+      if (!v.make || !v.model || !v.price) continue;
+      stmt.run(
+        v.make,
+        v.model,
+        v.version || '',
+        parseInt(v.year_fab || new Date().getFullYear(), 10),
+        parseInt(v.year_model || new Date().getFullYear(), 10),
+        parseFloat(v.price),
+        parseInt(v.mileage || 0, 10),
+        v.transmission || 'Automático',
+        v.fuel || 'Flex',
+        v.color || 'Prata',
+        v.plate_end || '',
+        v.body_type || 'Carro/Moto',
+        typeof v.features === 'object' ? JSON.stringify(v.features) : (v.features || '[]'),
+        typeof v.images === 'object' ? JSON.stringify(v.images) : (v.images || '[]'),
+        v.status || 'disponivel'
+      );
+      importedCount++;
+    }
+
+    res.json({ success: true, message: `${importedCount} veículo(s) sincronizado(s) com sucesso a partir do ERP` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // Rotas de Configurações
 router.get('/settings', (req, res) => {

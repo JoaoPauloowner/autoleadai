@@ -852,3 +852,24 @@ body {
   .simulator-layout { grid-template-columns: 1fr; }
   .dashboard-columns { grid-template-columns: 1fr; }
 }
+
+/* Botão WhatsApp */
+.btn-whatsapp {
+  background: #25d366;
+  color: #0b141a !important;
+  font-weight: 700;
+  border: none;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all var(--transition-fast);
+}
+.btn-whatsapp:hover {
+  background: #20ba5a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(37, 211, 102, 0.35);
+}
+

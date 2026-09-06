@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
   loadDashboardData();
   initSimulator();
+  checkWhatsAppStatus();
 });
 
 // ==========================================
@@ -895,3 +896,115 @@ async function handleSaveSettings(e) {
     alert('Erro ao salvar configurações');
   }
 }
+
+// ==========================================
+// 9. CONEXÃO WHATSAPP POR QR CODE
+// ==========================================
+let waPollingInterval = null;
+
+async function checkWhatsAppStatus() {
+  try {
+    const res = await fetch('/api/whatsapp/status');
+    const json = await res.json();
+    if (!json.success) return;
+
+    const { status, qrCode, phone } = json.data;
+
+    const topbarText = document.getElementById('topbarWaStatusText');
+    const topbarBtn = document.getElementById('topbarWaBtn');
+    const settingsBtn = document.getElementById('waSettingsBtnText');
+    const settingsDesc = document.getElementById('waSettingsStatusDesc');
+
+    if (status === 'connected') {
+      if (topbarText) topbarText.innerHTML = `<span style="display: inline-block; width: 8px; height: 8px; background: #fff; border-radius: 50%; margin-right: 4px;"></span> WhatsApp Conectado`;
+      if (topbarBtn) {
+        topbarBtn.style.background = '#16a34a';
+        topbarBtn.style.color = '#fff';
+      }
+      if (settingsBtn) settingsBtn.textContent = 'Gerenciar Conexão';
+      if (settingsDesc) settingsDesc.innerHTML = `🟢 <strong>Ativo e respondendo:</strong> ${phone || 'Conectado'}`;
+
+      // Atualiza modal se estiver aberto
+      document.getElementById('waModalDisconnectedView').style.display = 'none';
+      document.getElementById('waModalQrView').style.display = 'none';
+      document.getElementById('waModalConnectedView').style.display = 'block';
+      document.getElementById('waConnectedPhoneDisplay').textContent = phone || 'Conectado';
+    } else if (status === 'connecting') {
+      if (topbarText) topbarText.textContent = 'Aguardando QR Code...';
+      if (settingsBtn) settingsBtn.textContent = 'Aguardando Leitura';
+      if (settingsDesc) settingsDesc.textContent = 'Aponte a câmera do WhatsApp para o QR Code na tela.';
+
+      document.getElementById('waModalDisconnectedView').style.display = 'none';
+      document.getElementById('waModalConnectedView').style.display = 'none';
+      document.getElementById('waModalQrView').style.display = 'block';
+
+      if (qrCode) {
+        document.getElementById('qrLoadingSpinner').style.display = 'none';
+        const img = document.getElementById('qrCodeImage');
+        img.src = qrCode;
+        img.style.display = 'block';
+      } else {
+        document.getElementById('qrLoadingSpinner').style.display = 'block';
+        document.getElementById('qrCodeImage').style.display = 'none';
+      }
+    } else {
+      if (topbarText) topbarText.textContent = 'Conectar WhatsApp';
+      if (topbarBtn) {
+        topbarBtn.style.background = '#25d366';
+        topbarBtn.style.color = '#0b141a';
+      }
+      if (settingsBtn) settingsBtn.textContent = 'Conectar por QR Code';
+      if (settingsDesc) settingsDesc.textContent = 'Conecte o celular da loja escaneando o QR Code para ativar o atendente virtual.';
+
+      document.getElementById('waModalDisconnectedView').style.display = 'block';
+      document.getElementById('waModalQrView').style.display = 'none';
+      document.getElementById('waModalConnectedView').style.display = 'none';
+    }
+  } catch (e) {
+    console.error('Erro ao verificar status do WhatsApp:', e);
+  }
+}
+
+function openWhatsAppModal() {
+  document.getElementById('whatsAppModal').classList.add('active');
+  checkWhatsAppStatus();
+  if (waPollingInterval) clearInterval(waPollingInterval);
+  waPollingInterval = setInterval(checkWhatsAppStatus, 2500);
+}
+
+function closeWhatsAppModal() {
+  document.getElementById('whatsAppModal').classList.remove('active');
+  if (waPollingInterval) {
+    clearInterval(waPollingInterval);
+    waPollingInterval = null;
+  }
+}
+
+async function startWhatsAppConnection() {
+  document.getElementById('waModalDisconnectedView').style.display = 'none';
+  document.getElementById('waModalConnectedView').style.display = 'none';
+  document.getElementById('waModalQrView').style.display = 'block';
+  document.getElementById('qrLoadingSpinner').style.display = 'block';
+  document.getElementById('qrCodeImage').style.display = 'none';
+
+  try {
+    await fetch('/api/whatsapp/connect', { method: 'POST' });
+    checkWhatsAppStatus();
+    if (!waPollingInterval) {
+      waPollingInterval = setInterval(checkWhatsAppStatus, 2500);
+    }
+  } catch (err) {
+    alert('Erro ao iniciar conexão WhatsApp.');
+  }
+}
+
+async function disconnectWhatsAppConnection() {
+  if (!confirm('Deseja realmente desconectar este número de WhatsApp da concessionária?')) return;
+  try {
+    await fetch('/api/whatsapp/disconnect', { method: 'POST' });
+    checkWhatsAppStatus();
+  } catch (err) {
+    alert('Erro ao desconectar WhatsApp.');
+  }
+}
+

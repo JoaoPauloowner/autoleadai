@@ -8,6 +8,7 @@ node_modules/
 data/autolead.db
 data/autolead.db-journal
 data/autolead.db-wal
+data/whatsapp_session/
 
 # Logs e arquivos temporários do sistema
 npm-debug.log*

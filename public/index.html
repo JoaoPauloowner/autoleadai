@@ -77,6 +77,9 @@
           <p id="pageSubtitle">Acompanhamento de vendas, estoque e clientes em atendimento</p>
         </div>
         <div class="topbar-actions">
+          <button class="btn btn-whatsapp" id="topbarWaBtn" onclick="openWhatsAppModal()">
+            <i class="fa-brands fa-whatsapp"></i> <span id="topbarWaStatusText">Conectar WhatsApp</span>
+          </button>
           <button class="btn btn-outline" onclick="openCsvImportModal()">
             <i class="fa-solid fa-file-import"></i> Importar Leads
           </button>
@@ -409,9 +412,26 @@
               </div>
             </div>
 
-            <details style="margin-top: 24px; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; background: rgba(0,0,0,0.2);">
+            <div style="margin-top: 24px; padding: 18px; border-radius: 12px; background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.25); display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="width: 46px; height: 46px; border-radius: 50%; background: #25d366; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; color: #fff;">
+                  <i class="fa-brands fa-whatsapp"></i>
+                </div>
+                <div>
+                  <h4 style="color: #fff; margin-bottom: 2px;">Conexão Direta do WhatsApp da Loja</h4>
+                  <p style="color: var(--text-secondary); font-size: 0.85rem;" id="waSettingsStatusDesc">Conecte o celular da loja escaneando o QR Code para ativar o atendente virtual.</p>
+                </div>
+              </div>
+              <div>
+                <button type="button" class="btn btn-whatsapp" onclick="openWhatsAppModal()">
+                  <i class="fa-solid fa-qrcode"></i> <span id="waSettingsBtnText">Conectar por QR Code</span>
+                </button>
+              </div>
+            </div>
+
+            <details style="margin-top: 20px; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; background: rgba(0,0,0,0.2);">
               <summary style="cursor: pointer; font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-screwdriver-wrench"></i> Integração Técnica do WhatsApp (Configuração de TI / Suporte)
+                <i class="fa-solid fa-screwdriver-wrench"></i> Integração Técnica Avançada (Configuração de TI / Suporte)
               </summary>
               <div style="margin-top: 14px;">
                 <p class="settings-desc">Conecte o número de atendimento da sua loja para responder clientes reais via WhatsApp Web / API (Evolution API ou Z-API):</p>
@@ -514,6 +534,69 @@
             <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Salvar Veículo</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Conexão WhatsApp por QR Code -->
+  <div class="modal" id="whatsAppModal">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-content" style="text-align: center;">
+        <div class="modal-header">
+          <h3><i class="fa-brands fa-whatsapp" style="color: #25d366;"></i> WhatsApp da Concessionária</h3>
+          <button class="modal-close" onclick="closeWhatsAppModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 24px;">
+          <!-- Estado 1: Desconectado -->
+          <div id="waModalDisconnectedView">
+            <div style="font-size: 3.2rem; color: #64748b; margin-bottom: 12px;">
+              <i class="fa-solid fa-mobile-screen-button"></i>
+            </div>
+            <h4>Conectar Celular da Loja</h4>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 22px; line-height: 1.5;">
+              Conecte o número de WhatsApp da sua concessionária para que a inteligência artificial responda dúvidas de estoque, simule financiamentos e agende test-drives 24 horas por dia.
+            </p>
+            <button class="btn btn-primary" onclick="startWhatsAppConnection()">
+              <i class="fa-solid fa-qrcode"></i> Gerar QR Code de Conexão
+            </button>
+          </div>
+
+          <!-- Estado 2: Escaneando QR Code -->
+          <div id="waModalQrView" style="display: none;">
+            <h4>Aponte a câmera do WhatsApp</h4>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px; line-height: 1.5;">
+              1. Abra o WhatsApp no celular da concessionária<br>
+              2. Toque em <strong>Configurações &gt; Aparelhos Conectados</strong><br>
+              3. Toque em <strong>Conectar Aparelho</strong> e aponte para o QR Code abaixo:
+            </p>
+            <div id="qrCodeContainer" style="background: #fff; padding: 14px; border-radius: 12px; display: inline-block; margin-bottom: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);">
+              <div id="qrLoadingSpinner" style="color: #000; padding: 50px 30px; font-weight: 600; font-size: 0.9rem;">
+                <i class="fa-solid fa-circle-notch fa-spin"></i> Gerando QR Code seguro...
+              </div>
+              <img id="qrCodeImage" src="" alt="QR Code WhatsApp" style="display: none; width: 220px; height: 220px; border-radius: 8px;">
+            </div>
+            <div>
+              <button class="btn btn-outline btn-sm" onclick="startWhatsAppConnection()">
+                <i class="fa-solid fa-rotate"></i> Atualizar Código
+              </button>
+            </div>
+          </div>
+
+          <!-- Estado 3: Conectado com Sucesso -->
+          <div id="waModalConnectedView" style="display: none;">
+            <div style="font-size: 3.5rem; color: #22c55e; margin-bottom: 12px;">
+              <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <h4 style="color: #22c55e;">WhatsApp Conectado com Sucesso!</h4>
+            <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 22px; line-height: 1.5;">
+              Número conectado: <strong id="waConnectedPhoneDisplay" style="color: #fff;">Conectado</strong><br>
+              O atendente virtual está ativo e respondendo aos compradores da loja.
+            </p>
+            <button class="btn btn-outline" style="border-color: #ef4444; color: #ef4444;" onclick="disconnectWhatsAppConnection()">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i> Desconectar Este Número
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
