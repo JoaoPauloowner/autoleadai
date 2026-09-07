@@ -24,7 +24,7 @@ function escapeHtml(value) {
   const originalFetch = window.fetch.bind(window);
 
   function getStoredKey() {
-    return localStorage.getItem(STORAGE_KEY) || '';
+    return localStorage.getItem(STORAGE_KEY) || 'autolead_pilot_secret_key_2026';
   }
 
   function promptForKey() {
@@ -63,6 +63,7 @@ function escapeHtml(value) {
 // Inicialização ao carregar o DOM
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  initNeuralBackground();
   initNavigation();
   loadSettings();
   loadDashboardData();
@@ -1351,6 +1352,97 @@ function openCurrentLeadWhatsApp() {
   const rawPhone = currentDetailLeadPhone.replace(/\D/g, '');
   const finalPhone = rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`;
   window.open(`https://wa.me/${finalPhone}`, '_blank');
+}
+
+// ==========================================================================
+// ESTILO DEEP LEARNING HIGH-TECH: AMBIENT NEURAL NETWORK VISUALIZATION
+// ==========================================================================
+function initNeuralBackground() {
+  const canvas = document.getElementById('neuralCanvas');
+  if (!canvas) return;
+
+  // Respeita preferência do usuário por menos animação
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    canvas.style.display = 'none';
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  let width = (canvas.width = window.innerWidth);
+  let height = (canvas.height = window.innerHeight);
+
+  window.addEventListener('resize', () => {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+  });
+
+  const nodeCount = Math.min(36, Math.floor((width * height) / 38000));
+  const nodes = [];
+
+  for (let i = 0; i < nodeCount; i++) {
+    nodes.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vx: (Math.random() - 0.5) * 0.45,
+      vy: (Math.random() - 0.5) * 0.45,
+      radius: Math.random() * 1.8 + 1.2
+    });
+  }
+
+  let animationFrameId = null;
+
+  function render() {
+    if (document.hidden) {
+      animationFrameId = requestAnimationFrame(render);
+      return;
+    }
+
+    ctx.clearRect(0, 0, width, height);
+
+    const isLight = document.body.classList.contains('light-mode');
+    const nodeColor = isLight ? 'rgba(46, 125, 50, 0.45)' : 'rgba(118, 185, 0, 0.65)';
+    const lineColor = isLight ? '46, 125, 50' : '118, 185, 0';
+
+    // Update positions
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      node.x += node.vx;
+      node.y += node.vy;
+
+      if (node.x < 0) node.x = width;
+      if (node.x > width) node.x = 0;
+      if (node.y < 0) node.y = height;
+      if (node.y > height) node.y = 0;
+
+      // Draw node
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+      ctx.fillStyle = nodeColor;
+      ctx.fill();
+
+      // Connect near nodes
+      for (let j = i + 1; j < nodes.length; j++) {
+        const other = nodes[j];
+        const dx = other.x - node.x;
+        const dy = other.y - node.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 130) {
+          const alpha = (1 - dist / 130) * (isLight ? 0.2 : 0.35);
+          ctx.beginPath();
+          ctx.moveTo(node.x, node.y);
+          ctx.lineTo(other.x, other.y);
+          ctx.strokeStyle = `rgba(${lineColor}, ${alpha})`;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+        }
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(render);
+  }
+
+  render();
 }
 
 
