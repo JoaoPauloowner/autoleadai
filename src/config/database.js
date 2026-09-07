@@ -137,6 +137,26 @@ function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id TEXT DEFAULT 'default',
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('owner', 'salesperson')),
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS store_knowledge (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       organization_id TEXT DEFAULT 'default',
@@ -186,6 +206,7 @@ function initDatabase() {
   addColumnIfNotExists('leads', 'last_outbound_at', 'DATETIME');
   addColumnIfNotExists('leads', 'is_demo_data', 'INTEGER DEFAULT 0');
   addColumnIfNotExists('leads', 'ai_enabled', 'INTEGER DEFAULT 1');
+  addColumnIfNotExists('leads', 'assigned_to', 'INTEGER');
   addColumnIfNotExists('chat_messages', 'copilot_status', "TEXT DEFAULT 'approved'");
 
   // Sementes padrão da Base de Conhecimento (RAG) da concessionária
@@ -242,6 +263,41 @@ function initDatabase() {
     }
   } catch (seedErr) {
     console.warn('Aviso ao inicializar store_knowledge:', seedErr.message);
+  }
+
+  // Sementes padrão de Usuários (RBAC) e Distribuição Inicial de Leads
+  try {
+    const bcrypt = require('bcryptjs');
+    const existingUsers = db.prepare('SELECT COUNT(*) as count FROM users').get();
+    if (!existingUsers || existingUsers.count === 0) {
+      const insertUser = db.prepare(`
+        INSERT INTO users (name, email, password_hash, role)
+        VALUES (?, ?, ?, ?)
+      `);
+
+      const ownerHash = bcrypt.hashSync('admin123', 10);
+      const sellerHash = bcrypt.hashSync('vendedor123', 10);
+
+      insertUser.run('Carlos Diretor', 'admin@autolead.com', ownerHash, 'owner');
+      insertUser.run('Lucas Mendes', 'lucas@autolead.com', sellerHash, 'salesperson');
+      insertUser.run('Marcos Silva', 'marcos@autolead.com', sellerHash, 'salesperson');
+
+      console.log('👤 [RBAC] Usuários padrão criados (1 Owner: admin@ / 2 Salespersons: lucas@ e marcos@).');
+    }
+
+    // Atribui leads existentes sem assigned_to aos vendedores para teste imediato
+    const lucas = db.prepare("SELECT id FROM users WHERE email = 'lucas@autolead.com'").get();
+    const marcos = db.prepare("SELECT id FROM users WHERE email = 'marcos@autolead.com'").get();
+
+    if (lucas && marcos) {
+      db.prepare(`
+        UPDATE leads 
+        SET assigned_to = CASE WHEN (id % 2 = 0) THEN ? ELSE ? END 
+        WHERE assigned_to IS NULL
+      `).run(lucas.id, marcos.id);
+    }
+  } catch (userErr) {
+    console.warn('Aviso ao inicializar users:', userErr.message);
   }
 
   // Modo de produção: Inicializa tabelas limpas sem dados fictícios

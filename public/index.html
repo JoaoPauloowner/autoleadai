@@ -44,7 +44,7 @@
           <i class="fa-solid fa-filter-circle-dollar"></i>
           <span>Funil de Vendas</span>
         </button>
-        <button class="nav-item" data-view="knowledge">
+        <button class="nav-item" data-view="knowledge" id="navItemKnowledge">
           <i class="fa-solid fa-brain"></i>
           <span>Base de Conhecimento (RAG)</span>
         </button>
@@ -61,7 +61,7 @@
           <i class="fa-solid fa-warehouse"></i>
           <span>Estoque do Showroom</span>
         </button>
-        <button class="nav-item" data-view="settings">
+        <button class="nav-item" data-view="settings" id="navItemSettings">
           <i class="fa-solid fa-store"></i>
           <span>Configurações da Loja</span>
         </button>
@@ -87,6 +87,15 @@
           <p id="pageSubtitle">Acompanhamento de vendas, estoque e clientes em atendimento</p>
         </div>
         <div class="topbar-actions">
+          <!-- Perfil do Usuário Logado (RBAC) -->
+          <div class="user-profile-badge" id="userProfileBadge" style="display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+            <i class="fa-solid fa-user-circle" style="color: var(--primary); font-size: 1.1rem;"></i>
+            <div style="text-align: left; line-height: 1.2;">
+              <strong id="loggedUserName" style="font-size: 0.78rem; display: block; color: var(--text-primary);">Carregando...</strong>
+              <span id="loggedUserRole" class="stat-badge" style="font-size: 0.62rem; padding: 0 4px; text-transform: uppercase;">OWNER</span>
+            </div>
+          </div>
+
           <button class="btn btn-outline btn-icon" id="themeToggleBtn" onclick="toggleTheme()"
             title="Alternar Modo Claro / Escuro">
             <i class="fa-solid fa-sun"></i>

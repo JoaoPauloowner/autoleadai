@@ -100,5 +100,15 @@ function calculateLeadScore({ lead, messages = [] }) {
 }
 
 module.exports = {
-  calculateLeadScore
+  calculateLeadScore,
+  calculateScore: (params = {}) => {
+    const lead = {
+      interested_vehicle_id: params.hasVehicle ? 1 : null,
+      payment_method: params.paymentMethod,
+      budget_max: params.budget,
+      has_trade_in: params.hasTradeIn,
+      status: 'novo'
+    };
+    return calculateLeadScore({ lead, messages: [] });
+  }
 };

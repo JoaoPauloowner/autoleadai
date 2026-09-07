@@ -171,10 +171,11 @@ exports.resetSimulator = (req, res) => {
  */
 exports.getLiveConversations = (req, res) => {
   try {
-    const leads = db.prepare(`
+    let sql = `
       SELECT 
         l.id, l.name, l.phone, l.channel, l.status, l.score, 
         COALESCE(l.ai_enabled, 1) as ai_enabled, 
+        l.assigned_to, u.name as assigned_seller_name,
         l.ai_summary, l.last_inbound_at, l.last_outbound_at, l.updated_at,
         v.model as car_model, v.make as car_make,
         (SELECT content FROM chat_messages WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1) as last_message,
@@ -183,10 +184,20 @@ exports.getLiveConversations = (req, res) => {
         (SELECT COUNT(*) FROM chat_messages WHERE lead_id = l.id) as message_count
       FROM leads l
       LEFT JOIN vehicles v ON l.interested_vehicle_id = v.id
-      WHERE (SELECT COUNT(*) FROM chat_messages WHERE lead_id = l.id) > 0 OR l.channel = 'whatsapp'
-      ORDER BY COALESCE(last_message_at, l.last_inbound_at, l.created_at) DESC
-      LIMIT 100
-    `).all();
+      LEFT JOIN users u ON l.assigned_to = u.id
+      WHERE ((SELECT COUNT(*) FROM chat_messages WHERE lead_id = l.id) > 0 OR l.channel = 'whatsapp')
+    `;
+    const params = [];
+
+    // Vendedor só visualiza conversas de leads atribuídos a ele
+    if (req.user && req.user.role === 'salesperson') {
+      sql += ' AND l.assigned_to = ?';
+      params.push(req.user.id);
+    }
+
+    sql += ` ORDER BY COALESCE(last_message_at, l.last_inbound_at, l.created_at) DESC LIMIT 100`;
+
+    const leads = db.prepare(sql).all(...params);
 
     res.json({ success: true, count: leads.length, data: leads });
   } catch (error) {
@@ -211,6 +222,14 @@ exports.sendHumanMessage = async (req, res) => {
     const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId);
     if (!lead) {
       return res.status(404).json({ success: false, error: 'Lead não encontrado' });
+    }
+
+    // Regra de autorização mínima: vendedor só responde lead atribuído a ele
+    if (req.user && req.user.role === 'salesperson' && lead.assigned_to !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Acesso negado. Este atendimento está sob responsabilidade de outro vendedor.'
+      });
     }
 
     // Salva a mensagem no histórico do chat como assistente/vendedor
@@ -259,6 +278,18 @@ exports.toggleLeadAiStatus = (req, res) => {
   try {
     const { id } = req.params;
     const { ai_enabled } = req.body;
+
+    const lead = db.prepare('SELECT assigned_to FROM leads WHERE id = ?').get(id);
+    if (!lead) {
+      return res.status(404).json({ success: false, error: 'Lead não encontrado' });
+    }
+
+    if (req.user && req.user.role === 'salesperson' && lead.assigned_to !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Acesso negado. Apenas o vendedor responsável ou o gestor podem alterar o status deste lead.'
+      });
+    }
 
     const newStatus = ai_enabled ? 1 : 0;
     db.prepare(`

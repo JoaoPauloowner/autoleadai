@@ -1,15 +1,24 @@
 const db = require('../config/database');
+const leadRoutingService = require('../services/leadRoutingService');
 
 exports.listLeads = (req, res) => {
   try {
     const { status } = req.query;
     let sql = `
-      SELECT l.*, v.make as vehicle_make, v.model as vehicle_model, v.price as vehicle_price
+      SELECT l.*, v.make as vehicle_make, v.model as vehicle_model, v.price as vehicle_price,
+             u.name as assigned_seller_name
       FROM leads l
       LEFT JOIN vehicles v ON l.interested_vehicle_id = v.id
+      LEFT JOIN users u ON l.assigned_to = u.id
       WHERE 1=1
     `;
     const params = [];
+
+    // Regra de autorização mínima: vendedor só vê leads atribuídos a ele
+    if (req.user && req.user.role === 'salesperson') {
+      sql += ' AND l.assigned_to = ?';
+      params.push(req.user.id);
+    }
 
     if (status) {
       sql += ' AND l.status = ?';
@@ -40,14 +49,24 @@ exports.getLeadDetails = (req, res) => {
   try {
     const { id } = req.params;
     const lead = db.prepare(`
-      SELECT l.*, v.make as vehicle_make, v.model as vehicle_model, v.price as vehicle_price, v.images as vehicle_images
+      SELECT l.*, v.make as vehicle_make, v.model as vehicle_model, v.price as vehicle_price, v.images as vehicle_images,
+             u.name as assigned_seller_name
       FROM leads l
       LEFT JOIN vehicles v ON l.interested_vehicle_id = v.id
+      LEFT JOIN users u ON l.assigned_to = u.id
       WHERE l.id = ?
     `).get(id);
 
     if (!lead) {
       return res.status(404).json({ success: false, error: 'Lead não encontrado' });
+    }
+
+    // Regra de autorização mínima: vendedor não acessa lead de outro vendedor
+    if (req.user && req.user.role === 'salesperson' && lead.assigned_to !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Acesso negado. Este lead está atribuído a outro vendedor.'
+      });
     }
 
     const messages = db.prepare(`
@@ -123,12 +142,22 @@ exports.createLead = (req, res) => {
       timeline: '15_dias'
     });
 
+    // Se vendedor cadastrou o lead, fica atribuído a ele; senão usa round-robin
+    let targetSellerId = req.body.assigned_to;
+    if (!targetSellerId) {
+      if (req.user && req.user.role === 'salesperson') {
+        targetSellerId = req.user.id;
+      } else {
+        targetSellerId = leadRoutingService.getNextSalespersonId();
+      }
+    }
+
     const stmt = db.prepare(`
       INSERT INTO leads (
         name, phone, email, channel, status, budget_max,
         payment_method, has_trade_in, trade_in_details, interested_vehicle_id,
-        ai_summary, score, score_breakdown, last_inbound_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ai_summary, score, score_breakdown, assigned_to, last_inbound_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
 
     const result = stmt.run(
@@ -144,13 +173,15 @@ exports.createLead = (req, res) => {
       interested_vehicle_id ? parseInt(interested_vehicle_id, 10) : null,
       ai_summary || 'Contato cadastrado manualmente na loja',
       initialScore.total,
-      JSON.stringify(initialScore.breakdown)
+      JSON.stringify(initialScore.breakdown),
+      targetSellerId || null
     );
 
     res.status(201).json({
       success: true,
       message: 'Contato cadastrado com sucesso',
-      id: result.lastInsertRowid
+      id: result.lastInsertRowid,
+      assigned_to: targetSellerId
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -160,10 +191,23 @@ exports.createLead = (req, res) => {
 exports.updateLead = (req, res) => {
   try {
     const { id } = req.params;
+    const existing = db.prepare('SELECT assigned_to FROM leads WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Lead não encontrado' });
+    }
+
+    // Vendedor só pode editar leads atribuídos a si mesmo
+    if (req.user && req.user.role === 'salesperson' && existing.assigned_to !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Acesso negado. Você só pode editar seus próprios leads.'
+      });
+    }
+
     const {
       name, phone, email, status, budget_max,
       payment_method, has_trade_in, trade_in_details, interested_vehicle_id,
-      next_action_title, next_action_at
+      next_action_title, next_action_at, assigned_to
     } = req.body;
 
     const fields = [];
@@ -181,6 +225,12 @@ exports.updateLead = (req, res) => {
     if (next_action_title !== undefined) { fields.push('next_action_title = ?'); params.push(next_action_title); }
     if (next_action_at !== undefined) { fields.push('next_action_at = ?'); params.push(next_action_at); }
 
+    // Somente o dono (owner) pode reatribuir o lead a outro vendedor
+    if (assigned_to !== undefined && req.user && req.user.role === 'owner') {
+      fields.push('assigned_to = ?');
+      params.push(assigned_to || null);
+    }
+
     fields.push('updated_at = CURRENT_TIMESTAMP');
 
     params.push(id);
@@ -195,6 +245,19 @@ exports.updateLead = (req, res) => {
 exports.deleteLead = (req, res) => {
   try {
     const { id } = req.params;
+    const existing = db.prepare('SELECT assigned_to FROM leads WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Lead não encontrado' });
+    }
+
+    // Vendedor só pode excluir se for dono do lead
+    if (req.user && req.user.role === 'salesperson' && existing.assigned_to !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Acesso negado. Você só pode remover seus próprios leads.'
+      });
+    }
+
     db.prepare('DELETE FROM leads WHERE id = ?').run(id);
     res.json({ success: true, message: 'Contato removido com sucesso do funil' });
   } catch (error) {
@@ -225,11 +288,12 @@ exports.handlePortalLeadWebhook = async (req, res) => {
 
     let lead = db.prepare('SELECT * FROM leads WHERE phone = ?').get(phone);
     if (!lead) {
+      const assigned_to = leadRoutingService.getNextSalespersonId();
       const stmt = db.prepare(`
-        INSERT INTO leads (name, phone, email, channel, status, interested_vehicle_id, source_campaign, score, last_inbound_at)
-        VALUES (?, ?, ?, ?, 'novo', ?, ?, 65, CURRENT_TIMESTAMP)
+        INSERT INTO leads (name, phone, email, channel, status, interested_vehicle_id, source_campaign, score, assigned_to, last_inbound_at)
+        VALUES (?, ?, ?, ?, 'novo', ?, ?, 65, ?, CURRENT_TIMESTAMP)
       `);
-      const r = stmt.run(name, phone, email, portal.toLowerCase(), vehicleId, `Portal: ${portal}`);
+      const r = stmt.run(name, phone, email, portal.toLowerCase(), vehicleId, `Portal: ${portal}`, assigned_to);
       lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(r.lastInsertRowid);
     }
 

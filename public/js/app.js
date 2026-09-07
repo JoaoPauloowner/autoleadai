@@ -27,6 +27,7 @@ function escapeHtml(value) {
 }
 
 const AUTH_STORAGE_KEY = 'autolead_admin_api_key';
+let currentUser = null;
 
 function getStoredToken() {
   return localStorage.getItem(AUTH_STORAGE_KEY);
@@ -55,6 +56,34 @@ function showLoginScreen(errorMessage = null) {
 function hideLoginScreen() {
   const overlay = document.getElementById('loginScreenOverlay');
   if (overlay) overlay.style.display = 'none';
+}
+
+function applyUserRolePermissions(user) {
+  currentUser = user;
+  const nameEl = document.getElementById('loggedUserName');
+  const roleEl = document.getElementById('loggedUserRole');
+  const navSettings = document.getElementById('navItemSettings');
+  const navKnowledge = document.getElementById('navItemKnowledge');
+
+  if (nameEl && user) nameEl.textContent = user.name || user.email;
+  if (roleEl && user) {
+    if (user.role === 'owner') {
+      roleEl.textContent = 'DIRETOR / DONO';
+      roleEl.className = 'stat-badge success';
+    } else {
+      roleEl.textContent = 'VENDEDOR';
+      roleEl.className = 'stat-badge info';
+    }
+  }
+
+  // Oculta telas restritas ao proprietário (Owner) para vendedores
+  const isOwner = user && user.role === 'owner';
+  if (navSettings) navSettings.style.display = isOwner ? 'flex' : 'none';
+  if (navKnowledge) navKnowledge.style.display = isOwner ? 'flex' : 'none';
+
+  if (!isOwner && (currentView === 'settings' || currentView === 'knowledge')) {
+    switchView('dashboard');
+  }
 }
 
 async function handleLoginSubmit(e) {
@@ -91,10 +120,13 @@ async function handleLoginSubmit(e) {
     if (json.success && json.token) {
       localStorage.setItem(AUTH_STORAGE_KEY, json.token);
       hideLoginScreen();
-      loadSettings();
+      applyUserRolePermissions(json.user);
       loadDashboardData();
       loadLiveConversations();
-      loadKnowledgeList();
+      if (json.user.role === 'owner') {
+        loadSettings();
+        loadKnowledgeList();
+      }
       checkWhatsAppStatus();
     } else {
       if (alertEl) {
@@ -114,9 +146,13 @@ async function handleLoginSubmit(e) {
   }
 }
 
-function handleLogout() {
+async function handleLogout() {
   if (confirm('Deseja realmente encerrar a sessão no painel da concessionária?')) {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    currentUser = null;
     showLoginScreen();
   }
 }
@@ -129,14 +165,15 @@ function handleLogout() {
 
     const token = getStoredToken();
     if (isApiCall && token) {
-      options = { ...options, headers: { ...(options.headers || {}), 'x-api-key': token } };
+      options = { ...options, headers: { ...(options.headers || {}), 'x-api-key': token, 'Authorization': `Bearer ${token}` } };
     }
 
     const response = await window.originalFetch(url, options);
 
     if (isApiCall && response.status === 401) {
       localStorage.removeItem(AUTH_STORAGE_KEY);
-      showLoginScreen('Sua sessão expirou ou a chave de acesso foi alterada. Faça login novamente.');
+      currentUser = null;
+      showLoginScreen('Sua sessão expirou. Faça login novamente.');
     }
 
     return response;
@@ -144,19 +181,36 @@ function handleLogout() {
 })();
 
 // Inicialização ao carregar o DOM
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
   initNeuralBackground();
   initNavigation();
 
-  if (!getStoredToken()) {
+  const token = getStoredToken();
+  if (!token) {
     showLoginScreen();
-  } else {
-    loadSettings();
-    loadDashboardData();
-    loadLiveConversations();
-    loadKnowledgeList();
-    checkWhatsAppStatus();
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/auth/me');
+    const json = await res.json();
+    if (json.success && json.user) {
+      applyUserRolePermissions(json.user);
+      loadDashboardData();
+      loadLiveConversations();
+      if (json.user.role === 'owner') {
+        loadSettings();
+        loadKnowledgeList();
+      }
+      checkWhatsAppStatus();
+    } else {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      showLoginScreen('Sessão expirada. Faça login novamente.');
+    }
+  } catch (err) {
+    console.error('Erro ao verificar sessão:', err);
+    showLoginScreen();
   }
 });
 
@@ -437,6 +491,7 @@ function renderKanban(leads) {
       `}
       <div class="lead-badges">
         <span class="badge-tag"><i class="fa-solid fa-phone"></i> ${escapeHtml(lead.phone)}</span>
+        ${lead.assigned_seller_name ? `<span class="badge-tag" style="color: var(--primary); border-color: rgba(0, 229, 255, 0.4);"><i class="fa-solid fa-user-tie"></i> ${escapeHtml(lead.assigned_seller_name)}</span>` : ''}
         ${lead.has_trade_in ? '<span class="badge-tag" style="color: var(--accent-amber);"><i class="fa-solid fa-rotate"></i> Troca</span>' : ''}
         ${lead.payment_method ? `<span class="badge-tag">${escapeHtml(lead.payment_method.replace('_', ' '))}</span>` : ''}
       </div>
@@ -725,6 +780,7 @@ function renderLiveConversationsList() {
           <div class="convo-preview-row">
             <span class="convo-preview">${escapeHtml(preview)}</span>
             <div style="display: flex; align-items: center; gap: 4px;">
+              ${c.assigned_seller_name ? `<span class="badge-tag" style="font-size: 0.65rem; color: var(--primary); padding: 1px 4px; border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 4px;" title="Vendedor atribuído"><i class="fa-solid fa-user-tie"></i> ${escapeHtml(c.assigned_seller_name)}</span>` : ''}
               ${badgeHtml}
               <span class="lead-score-pill ${scoreClass}" style="padding: 1px 5px; font-size: 0.65rem;">
                 ${score} pts
@@ -783,7 +839,10 @@ function updateActiveChatHeader(lead) {
   const toggleText = document.getElementById('aiToggleText');
 
   if (nameEl) nameEl.textContent = lead.name || 'Cliente Sem Nome';
-  if (phoneEl) phoneEl.textContent = `${lead.phone || 'Sem telefone'} • Canal: ${lead.channel || 'WhatsApp'}`;
+  if (phoneEl) {
+    const sellerTag = lead.assigned_seller_name ? ` • Vendedor: ${lead.assigned_seller_name}` : '';
+    phoneEl.textContent = `${lead.phone || 'Sem telefone'} • Canal: ${lead.channel || 'WhatsApp'}${sellerTag}`;
+  }
 
   const score = lead.score || 25;
   if (scoreEl) {
@@ -1696,7 +1755,8 @@ async function openLeadDetails(id) {
     currentDetailLeadPhone = lead.phone;
 
     document.getElementById('ldLeadName').textContent = lead.name || 'Cliente';
-    document.getElementById('ldLeadPhone').textContent = `Telefone: ${lead.phone} • Origem: ${lead.channel || 'Balcão'}`;
+    const sellerStr = lead.assigned_seller_name ? ` • Vendedor: ${lead.assigned_seller_name}` : '';
+    document.getElementById('ldLeadPhone').textContent = `Telefone: ${lead.phone} • Origem: ${lead.channel || 'Balcão'}${sellerStr}`;
     document.getElementById('ldStatus').value = lead.status || 'novo';
 
     // Lead Score

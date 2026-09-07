@@ -10,6 +10,7 @@ const {
 
 const agent = require('../ai/agent');
 const db = require('../config/database');
+const leadRoutingService = require('../services/leadRoutingService');
 
 let sock = null;
 let connectionStatus = 'disconnected'; // 'disconnected' | 'connecting' | 'connected'
@@ -126,12 +127,14 @@ async function startWhatsApp() {
           // Busca ou cria lead
           let lead = db.prepare('SELECT * FROM leads WHERE phone = ?').get(senderPhone);
           if (!lead) {
+            const assigned_to = leadRoutingService.getNextSalespersonId();
             const stmt = db.prepare(`
-              INSERT INTO leads (name, phone, channel, status, ai_enabled)
-              VALUES (?, ?, 'whatsapp', 'novo', 1)
+              INSERT INTO leads (name, phone, channel, status, ai_enabled, assigned_to)
+              VALUES (?, ?, 'whatsapp', 'novo', 1, ?)
             `);
-            const r = stmt.run(pushName, senderPhone);
+            const r = stmt.run(pushName, senderPhone, assigned_to);
             lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(r.lastInsertRowid);
+            console.log(`🎯 [Round-Robin] Novo lead ${pushName} (${senderPhone}) atribuído ao vendedor ID ${assigned_to}`);
           }
 
           // Se o vendedor humano assumiu (ai_enabled === 0), salva a mensagem recebida e NÃO responde via IA

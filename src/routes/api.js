@@ -10,12 +10,15 @@ const importController = require('../controllers/importController');
 const knowledgeController = require('../controllers/knowledgeController');
 const authController = require('../controllers/authController');
 const auditService = require('../services/auditService');
+const { requireOwner } = require('../middleware/auth');
 const config = require('../config/ai-provider');
 const settingsStore = require('../config/settings-store');
 const db = require('../config/database');
 
-// Rota de Autenticação Administrativa
+// Rotas de Autenticação & Sessão
 router.post('/auth/login', authController.login);
+router.get('/auth/me', authController.me);
+router.post('/auth/logout', authController.logout);
 
 // Rotas de Veículos (Estoque)
 router.get('/vehicles', vehicleController.listVehicles);
@@ -58,12 +61,12 @@ router.post('/chat/send-photo', chatController.sendVehiclePhoto);
 router.get('/chat/messages/:leadId', chatController.getMessages);
 router.post('/chat/reset', chatController.resetSimulator);
 
-// Rotas da Base de Conhecimento e RAG da Concessionária (Treinamento da IA)
-router.get('/knowledge', knowledgeController.listKnowledge);
-router.post('/knowledge', knowledgeController.createKnowledge);
-router.post('/knowledge/bulk', knowledgeController.bulkImportKnowledge);
-router.put('/knowledge/:id', knowledgeController.updateKnowledge);
-router.delete('/knowledge/:id', knowledgeController.deleteKnowledge);
+// Rotas da Base de Conhecimento e RAG da Concessionária (Restritas ao Dono/Owner)
+router.get('/knowledge', requireOwner, knowledgeController.listKnowledge);
+router.post('/knowledge', requireOwner, knowledgeController.createKnowledge);
+router.post('/knowledge/bulk', requireOwner, knowledgeController.bulkImportKnowledge);
+router.put('/knowledge/:id', requireOwner, knowledgeController.updateKnowledge);
+router.delete('/knowledge/:id', requireOwner, knowledgeController.deleteKnowledge);
 
 // Rotas de Conexão WhatsApp por QR Code Nativamente
 const whatsappService = require('../services/whatsappService');
@@ -76,7 +79,7 @@ router.post('/whatsapp/connect', (req, res) => {
   whatsappService.startWhatsApp();
   auditService.logAudit({
     organization_id: 'default',
-    actor: 'admin',
+    actor: req.user ? `${req.user.name} (${req.user.role})` : 'admin',
     action: 'connect_whatsapp',
     entity_type: 'whatsapp_session',
     entity_id: 'baileys_session',
@@ -89,7 +92,7 @@ router.post('/whatsapp/disconnect', async (req, res) => {
   const result = await whatsappService.disconnectWhatsApp();
   auditService.logAudit({
     organization_id: 'default',
-    actor: 'admin',
+    actor: req.user ? `${req.user.name} (${req.user.role})` : 'admin',
     action: 'disconnect_whatsapp',
     entity_type: 'whatsapp_session',
     entity_id: 'baileys_session',
@@ -155,7 +158,7 @@ router.get('/settings', (req, res) => {
   });
 });
 
-router.post('/settings', (req, res) => {
+router.post('/settings', requireOwner, (req, res) => {
   try {
     const { provider, openaiKey, geminiKey, dealershipName, dealershipAddress, dealershipPhone } = req.body;
     
@@ -168,7 +171,7 @@ router.post('/settings', (req, res) => {
 
     auditService.logAudit({
       organization_id: 'default',
-      actor: 'admin',
+      actor: req.user ? `${req.user.name} (${req.user.role})` : 'admin',
       action: 'update_settings',
       entity_type: 'settings',
       entity_id: 'store_settings',
