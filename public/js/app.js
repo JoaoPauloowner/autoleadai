@@ -1,6 +1,13 @@
 // Estado global da aplicação
 let currentView = 'dashboard';
 let currentLeadId = null;
+let activeChatLeadId = null;
+let liveConvosData = [];
+let liveFilter = 'all';
+let livePollingTimer = null;
+let lastMessagesCount = 0;
+let knowledgeData = [];
+let currentKnowledgeCat = 'all';
 let vehiclesData = [];
 let leadsData = [];
 let testDrivesData = [];
@@ -67,7 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   loadSettings();
   loadDashboardData();
-  initSimulator();
+  loadLiveConversations();
+  loadKnowledgeList();
   checkWhatsAppStatus();
 });
 
@@ -104,11 +112,12 @@ function switchView(viewName) {
 
   const titles = {
     dashboard: { title: 'Cockpit de Vendas & Pátio', subtitle: 'Acompanhamento em tempo real de receita, estoque e oportunidades em risco' },
-    simulator: { title: 'Central de WhatsApp da Loja', subtitle: 'Atendimento aos clientes, simulações de financiamento e agendamentos automáticos' },
+    livechat: { title: 'Atendimento ao Vivo (WhatsApp da Loja)', subtitle: 'Conversas em tempo real, transição fluida entre IA e Vendedor Humano' },
     crm: { title: 'Funil de Vendas (CRM)', subtitle: 'Gestão visual de clientes desde o primeiro contato até a entrega das chaves' },
     testdrives: { title: 'Agenda de Visitas & Test-Drive', subtitle: 'Clientes agendados para visitar o showroom hoje e nos próximos dias' },
     tasks: { title: 'Tarefas da Equipe de Vendas', subtitle: 'Follow-ups pendentes, ligações e retornos agendados para os vendedores' },
     vehicles: { title: 'Estoque do Showroom', subtitle: 'Catálogo de veículos da loja, fotos, preços e status no pátio' },
+    knowledge: { title: 'Base de Conhecimento & Treinamento da IA (RAG)', subtitle: 'Perguntas frequentes, políticas de financiamento e regras de negócio da concessionária' },
     settings: { title: 'Dados da Concessionária', subtitle: 'Informações da loja, endereço do showroom, horários e WhatsApp de atendimento' }
   };
 
@@ -117,11 +126,30 @@ function switchView(viewName) {
     document.getElementById('pageSubtitle').textContent = titles[viewName].subtitle;
   }
 
-  if (viewName === 'dashboard') loadDashboardData();
-  else if (viewName === 'crm') loadCRM();
-  else if (viewName === 'tasks') loadTasks();
-  else if (viewName === 'testdrives') loadTestDrives();
-  else if (viewName === 'vehicles') loadVehicles();
+  if (viewName === 'dashboard') {
+    loadDashboardData();
+  } else if (viewName === 'livechat') {
+    loadLiveConversations();
+    if (livePollingTimer) clearInterval(livePollingTimer);
+    livePollingTimer = setInterval(() => {
+      if (currentView === 'livechat') {
+        loadLiveConversations(true);
+        if (activeChatLeadId) {
+          renderLiveChatMessages(activeChatLeadId, true);
+        }
+      }
+    }, 3000);
+  } else {
+    if (livePollingTimer) {
+      clearInterval(livePollingTimer);
+      livePollingTimer = null;
+    }
+    if (viewName === 'crm') loadCRM();
+    else if (viewName === 'tasks') loadTasks();
+    else if (viewName === 'testdrives') loadTestDrives();
+    else if (viewName === 'vehicles') loadVehicles();
+    else if (viewName === 'knowledge') loadKnowledgeList();
+  }
 }
 
 // ==========================================
@@ -497,279 +525,623 @@ async function submitCsvImport() {
 }
 
 // ==========================================
-// 6. SIMULADOR MULTIMODAL (ÁUDIO + VISÃO)
+// 6. CENTRAL DE ATENDIMENTO AO VIVO (LIVE WHATSAPP INBOX)
 // ==========================================
-function initSimulator() {
-  resetSimulatorChat();
-}
 
-function openSimulatorModal() {
-  switchView('simulator');
-}
-
-async function resetSimulatorChat() {
+async function loadLiveConversations(silent = false) {
   try {
-    const res = await fetch('/api/chat/reset', { method: 'POST' });
+    const res = await fetch('/api/chat/conversations');
     const json = await res.json();
-    if (json.success) {
-      currentLeadId = json.leadId;
-      document.getElementById('waMessagesContainer').innerHTML = `
-        <div class="wa-bubble incoming">
-          <p>Olá! Sou o consultor virtual da <strong>AutoPrime Seminovos</strong> 🚗💨</p>
-          <p>Você pode me mandar mensagens de texto, <strong>áudios</strong> ou até a <strong>foto do seu carro usado</strong> para avaliarmos na troca!</p>
-          <span class="wa-time">${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-        </div>
-      `;
-      updateSimulatorScoreBar(25, { interesse: 5, prazo: 10, capacidade: 5, compromisso: 5 });
-      document.getElementById('telemetryLogsContainer').innerHTML = `
-        <div class="telemetry-empty">
-          <i class="fa-solid fa-comments"></i>
-          <p>Aguardando mensagens do cliente...<br>À medida que a conversa acontece, os veículos pesquisados, simulações e visitas aparecerão aqui.</p>
-        </div>
-      `;
+    if (!json.success) return;
+
+    liveConvosData = json.data || [];
+    const countEl = document.getElementById('countAllChats');
+    if (countEl) countEl.textContent = liveConvosData.length;
+
+    renderLiveConversationsList();
+
+    // If an active chat is selected, make sure its details stay updated in header
+    if (activeChatLeadId) {
+      const activeLead = liveConvosData.find(c => c.id === activeChatLeadId);
+      if (activeLead) {
+        updateActiveChatHeader(activeLead);
+      }
     }
-  } catch (e) {
-    console.error(e);
+  } catch (err) {
+    if (!silent) console.error('Erro ao carregar conversas do WhatsApp:', err);
   }
 }
 
-function updateSimulatorScoreBar(score, breakdown) {
-  const bar = document.getElementById('activeScoreBadge');
-  const detail = document.getElementById('activeScoreDetail');
-  if (bar) bar.innerHTML = `<i class="fa-solid fa-fire"></i> Lead Score: ${score} pts`;
-  if (detail && breakdown) {
-    detail.textContent = `Interesse: ${breakdown.interesse} | Prazo: ${breakdown.prazo} | Entrada: ${breakdown.capacidade} | Visita: ${breakdown.compromisso}`;
+function setLiveFilter(filter) {
+  liveFilter = filter;
+  document.querySelectorAll('.livechat-filter-pills .filter-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === filter);
+  });
+  renderLiveConversationsList();
+}
+
+function filterLiveConversations() {
+  renderLiveConversationsList();
+}
+
+function renderLiveConversationsList() {
+  const container = document.getElementById('liveChatListContainer');
+  if (!container) return;
+
+  const searchTerm = (document.getElementById('liveChatSearchInput')?.value || '').toLowerCase().trim();
+
+  let filtered = liveConvosData.filter(c => {
+    // Filter pill logic
+    if (liveFilter === 'ai' && c.ai_enabled === 0) return false;
+    if (liveFilter === 'human' && c.ai_enabled === 1) return false;
+
+    // Search filter
+    if (searchTerm) {
+      const name = (c.name || '').toLowerCase();
+      const phone = (c.phone || '').toLowerCase();
+      const car = (c.vehicle_model || '').toLowerCase();
+      if (!name.includes(searchTerm) && !phone.includes(searchTerm) && !car.includes(searchTerm)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div style="padding: 32px 16px; text-align: center; color: var(--text-muted); font-size: 0.8rem; font-family: 'Roboto Mono', monospace;">
+        <i class="fa-solid fa-inbox" style="font-size: 1.5rem; margin-bottom: 8px; display: block; opacity: 0.5;"></i>
+        Nenhuma conversa encontrada
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = filtered.map(c => {
+    const isSelected = c.id === activeChatLeadId;
+    const score = c.score || 25;
+    let scoreClass = 'pesquisa';
+    if (score >= 75) scoreClass = 'quente';
+    else if (score >= 50) scoreClass = 'qualificado';
+
+    // Format time
+    let timeStr = '';
+    if (c.last_message_at) {
+      const d = new Date(c.last_message_at);
+      const now = new Date();
+      const isToday = d.toDateString() === now.toDateString();
+      timeStr = isToday 
+        ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    }
+
+    const isAi = c.ai_enabled === 1 || c.ai_enabled === null || c.ai_enabled === undefined;
+    const badgeHtml = isAi 
+      ? `<span class="convo-ai-badge ai" title="IA respondendo automaticamente"><i class="fa-solid fa-robot"></i> IA</span>`
+      : `<span class="convo-ai-badge human" title="Vendedor humano assumiu"><i class="fa-solid fa-user"></i> Vendedor</span>`;
+
+    const initials = (c.name || 'C')
+      .split(' ')
+      .map(n => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+
+    const senderPrefix = c.last_sender === 'user' ? '' : (c.last_sender === 'assistant' ? (isAi ? '🤖 IA: ' : '👤 Você: ') : '');
+    const preview = c.last_message ? `${senderPrefix}${c.last_message}` : 'Nova conversa iniciada';
+
+    return `
+      <div class="livechat-convo-item ${isSelected ? 'active' : ''}" onclick="selectLiveConversation(${c.id})">
+        <div class="convo-avatar">
+          ${initials}
+          <span class="avatar-status-dot ${isAi ? 'ai-online' : 'human-online'}"></span>
+        </div>
+        <div class="convo-info">
+          <div class="convo-top-row">
+            <span class="convo-name">${escapeHtml(c.name || 'Cliente Sem Nome')}</span>
+            <span class="convo-time">${timeStr}</span>
+          </div>
+          <div class="convo-preview-row">
+            <span class="convo-preview">${escapeHtml(preview)}</span>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              ${badgeHtml}
+              <span class="lead-score-pill ${scoreClass}" style="padding: 1px 5px; font-size: 0.65rem;">
+                ${score} pts
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function selectLiveConversation(leadId) {
+  activeChatLeadId = leadId;
+  renderLiveConversationsList();
+
+  const emptyState = document.getElementById('liveChatEmptyState');
+  const activeWindow = document.getElementById('liveChatActiveWindow');
+  if (emptyState) emptyState.style.display = 'none';
+  if (activeWindow) activeWindow.style.display = 'flex';
+
+  let lead = liveConvosData.find(c => c.id === leadId);
+  if (!lead) {
+    try {
+      const res = await fetch(`/api/leads/${leadId}`);
+      const json = await res.json();
+      if (json.success) lead = json.data;
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  if (lead) {
+    updateActiveChatHeader(lead);
+  }
+
+  // Load chat messages
+  lastMessagesCount = 0;
+  await renderLiveChatMessages(leadId, false);
+
+  // Focus message input
+  const input = document.getElementById('liveChatMessageInput');
+  if (input) input.focus();
+}
+
+function updateActiveChatHeader(lead) {
+  const nameEl = document.getElementById('activeChatLeadName');
+  const phoneEl = document.getElementById('activeChatLeadPhone');
+  const scoreEl = document.getElementById('activeChatScoreBadge');
+  const avatarEl = document.getElementById('activeChatAvatar');
+  const carInterestEl = document.getElementById('activeChatCarInterest');
+  const tradeInEl = document.getElementById('activeChatTradeIn');
+  const stageEl = document.getElementById('activeChatStage');
+  const toggleBtn = document.getElementById('btnToggleAiStatus');
+  const toggleIcon = document.getElementById('aiToggleIcon');
+  const toggleText = document.getElementById('aiToggleText');
+
+  if (nameEl) nameEl.textContent = lead.name || 'Cliente Sem Nome';
+  if (phoneEl) phoneEl.textContent = `${lead.phone || 'Sem telefone'} • Canal: ${lead.channel || 'WhatsApp'}`;
+
+  const score = lead.score || 25;
+  if (scoreEl) {
+    let scoreClass = 'pesquisa';
+    if (score >= 75) scoreClass = 'quente';
+    else if (score >= 50) scoreClass = 'qualificado';
+    scoreEl.className = `lead-score-pill ${scoreClass}`;
+    scoreEl.textContent = `${score} pts`;
+  }
+
+  if (avatarEl) {
+    const initials = (lead.name || 'C').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+    avatarEl.textContent = initials;
+  }
+
+  if (carInterestEl) {
+    carInterestEl.textContent = lead.vehicle_model 
+      ? `${lead.vehicle_make || ''} ${lead.vehicle_model}`
+      : 'Veículos em Destaque';
+  }
+
+  if (tradeInEl) {
+    tradeInEl.textContent = lead.has_trade_in ? (lead.trade_in_details || 'Possui carro na troca') : 'Sem veículo na troca';
+  }
+
+  if (stageEl) {
+    const stageNames = {
+      novo: 'Novo Lead',
+      qualificado: 'Qualificado pela IA',
+      test_drive: 'Visita Marcada',
+      proposta: 'Em Negociação',
+      fechado: 'Venda Fechada'
+    };
+    stageEl.textContent = stageNames[lead.status] || lead.status;
+  }
+
+  // Update AI vs Human Toggle Switch
+  const isAi = lead.ai_enabled === 1 || lead.ai_enabled === null || lead.ai_enabled === undefined;
+  if (toggleBtn) {
+    if (isAi) {
+      toggleBtn.className = 'btn-ai-toggle ai-active';
+      if (toggleIcon) toggleIcon.className = 'fa-solid fa-robot';
+      if (toggleText) toggleText.textContent = 'IA Ativa (Automático)';
+      toggleBtn.title = 'Clique para o vendedor assumir o atendimento humano';
+    } else {
+      toggleBtn.className = 'btn-ai-toggle human-active';
+      if (toggleIcon) toggleIcon.className = 'fa-solid fa-user-check';
+      if (toggleText) toggleText.textContent = 'Vendedor Assumiu';
+      toggleBtn.title = 'Clique para devolver o atendimento para a IA';
+    }
   }
 }
 
-async function loadSimulatorHistory(leadId) {
+async function renderLiveChatMessages(leadId, silent = false) {
   try {
     const res = await fetch(`/api/chat/messages/${leadId}`);
     const json = await res.json();
     if (!json.success) return;
 
-    const container = document.getElementById('waMessagesContainer');
-    container.innerHTML = '';
-    json.data.forEach(msg => {
-      appendWaBubble(msg.sender === 'user' ? 'outgoing' : 'incoming', msg.content);
-    });
+    const messages = json.data || [];
+    const container = document.getElementById('liveChatMessagesStream');
+    if (!container) return;
 
-    const leadRes = await fetch(`/api/leads/${leadId}`);
-    const leadJson = await leadRes.json();
-    if (leadJson.success) {
-      updateSimulatorScoreBar(leadJson.data.score || 25, leadJson.data.score_breakdown);
+    // Check if message count changed or if first load
+    if (silent && messages.length === lastMessagesCount) {
+      return;
     }
-  } catch (e) {
-    console.error(e);
+    lastMessagesCount = messages.length;
+
+    const lead = liveConvosData.find(c => c.id === leadId);
+    const isAi = lead ? (lead.ai_enabled === 1 || lead.ai_enabled === null || lead.ai_enabled === undefined) : true;
+
+    if (messages.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; margin: auto; padding: 30px;">
+          <i class="fa-brands fa-whatsapp" style="font-size: 2rem; color: #25d366; margin-bottom: 8px; display: block;"></i>
+          Canal aberto. Nenhuma mensagem trocada ainda com este cliente.
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = messages.map(m => {
+      const isCustomer = m.sender === 'user';
+      const time = m.created_at 
+        ? new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        : '';
+
+      const formattedContent = escapeHtml(m.content)
+        .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+
+      const bubbleClass = isCustomer ? 'incoming' : 'outgoing';
+      const headerLabel = isCustomer 
+        ? `<span class="bubble-sender-name"><i class="fa-solid fa-user"></i> ${escapeHtml(lead?.name || 'Cliente')}</span>`
+        : `<span class="bubble-sender-name" style="color: var(--primary);"><i class="fa-solid ${isAi ? 'fa-robot' : 'fa-user-tie'}"></i> ${isAi ? 'AutoLead IA' : 'Vendedor da Loja'}</span>`;
+
+      return `
+        <div class="livechat-bubble ${bubbleClass}">
+          <div class="bubble-header-row">
+            ${headerLabel}
+            <span class="bubble-timestamp">${time}</span>
+          </div>
+          <div class="bubble-body-text">${formattedContent}</div>
+        </div>
+      `;
+    }).join('');
+
+    // Scroll to bottom
+    container.scrollTop = container.scrollHeight;
+  } catch (err) {
+    if (!silent) console.error('Erro ao renderizar mensagens:', err);
   }
 }
 
-function sendQuickPrompt(text) {
-  document.getElementById('waChatInput').value = text;
-  handleSendUserMessage(new Event('submit'));
+async function toggleCurrentChatAi() {
+  if (!activeChatLeadId) return;
+
+  const lead = liveConvosData.find(c => c.id === activeChatLeadId);
+  const currentAiState = lead ? (lead.ai_enabled === 1 || lead.ai_enabled === null || lead.ai_enabled === undefined) : true;
+  const newAiState = currentAiState ? 0 : 1;
+
+  // Optimistic UI update
+  if (lead) lead.ai_enabled = newAiState;
+  const dummyLead = lead || { ai_enabled: newAiState };
+  updateActiveChatHeader(dummyLead);
+  renderLiveConversationsList();
+
+  try {
+    const res = await fetch(`/api/leads/${activeChatLeadId}/ai-status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ai_enabled: newAiState })
+    });
+    const json = await res.json();
+    if (!json.success) {
+      alert('Erro ao atualizar controle de IA: ' + json.error);
+      if (lead) lead.ai_enabled = currentAiState ? 1 : 0;
+      updateActiveChatHeader(lead);
+      renderLiveConversationsList();
+    }
+  } catch (err) {
+    console.error('Erro ao alterar status da IA:', err);
+  }
 }
 
-async function handleSendUserMessage(e) {
-  if (e) e.preventDefault();
-  const input = document.getElementById('waChatInput');
+async function handleSendHumanMessage(e) {
+  e.preventDefault();
+  if (!activeChatLeadId) return;
+
+  const input = document.getElementById('liveChatMessageInput');
   const message = input.value.trim();
   if (!message) return;
 
-  appendWaBubble('outgoing', message);
+  // Clear input immediately
   input.value = '';
 
-  const statusEl = document.getElementById('waTypingStatus');
-  statusEl.textContent = 'digitando...';
-
-  try {
-    const res = await fetch('/api/chat/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId: currentLeadId, message })
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      currentLeadId = data.leadId;
-      appendWaBubble('incoming', data.reply);
-      if (data.score) {
-        updateSimulatorScoreBar(data.score.total, data.score.breakdown);
-      }
-      if (data.tools && data.tools.length > 0) {
-        renderTelemetryTools(data.tools, data.provider);
-      }
-    }
-  } catch (err) {
-    appendWaBubble('incoming', 'Erro ao conectar à IA.');
-  } finally {
-    statusEl.textContent = 'online';
+  // Switch to seller human mode automatically if not already
+  const lead = liveConvosData.find(c => c.id === activeChatLeadId);
+  if (lead && lead.ai_enabled === 1) {
+    lead.ai_enabled = 0;
+    updateActiveChatHeader(lead);
+    renderLiveConversationsList();
   }
-}
 
-/**
- * Simulação de envio de áudio nativo pelo cliente (RAG Multimodal)
- */
-async function simulateSendAudio() {
-  appendWaBubble('outgoing', '🎙️ <em>[Mensagem de voz - 0:14s]</em> "Oi Lucas! Eu vi o anúncio do Renegade. Queria saber se vocês aceitam meu carro na troca e quanto fica a parcela em 48x?"', true);
-
-  const statusEl = document.getElementById('waTypingStatus');
-  statusEl.textContent = 'ouvindo áudio e transcrevendo...';
-
-  try {
-    const res = await fetch('/api/chat/send-audio', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        leadId: currentLeadId,
-        mockText: 'Olá! Vi o anúncio do Renegade no site de vocês. Tenho um Onix 2019 e gostaria de saber quanto vocês pagam na troca e o valor da parcela em 48x.'
-      })
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      appendWaBubble('incoming', data.reply);
-      if (data.score) updateSimulatorScoreBar(data.score.total, data.score.breakdown);
-      if (data.tools) renderTelemetryTools(data.tools, 'RAG Multimodal (Transcrição de Áudio)');
-    }
-  } catch (e) {
-    appendWaBubble('incoming', 'Erro ao processar áudio.');
-  } finally {
-    statusEl.textContent = 'online';
-  }
-}
-
-/**
- * Simulação de envio de foto do carro na troca (RAG Multimodal Vision)
- */
-async function simulateSendCarPhoto() {
-  appendWaBubble('outgoing', '📷 <em>[Foto do Veículo da Troca enviada pelo cliente]</em><br><img src="https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=300" style="width: 100%; border-radius: 8px; margin-top: 6px;">', true);
-
-  const statusEl = document.getElementById('waTypingStatus');
-  statusEl.textContent = 'analisando imagem do veículo...';
-
-  try {
-    const res = await fetch('/api/chat/send-photo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        leadId: currentLeadId,
-        mockDetails: 'Foto analisada: Chevrolet Onix Sedan Premier 2019/2020 Azul, lataria íntegra, conjunto óptico sem trincas, rodas de liga leve originais. Pré-avaliação entre R$ 48.000 e R$ 52.000 a confirmar no showroom.'
-      })
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      appendWaBubble('incoming', data.reply);
-      if (data.tools) renderTelemetryTools(data.tools, 'RAG Multimodal (Visão Computacional)');
-    }
-  } catch (e) {
-    appendWaBubble('incoming', 'Erro ao processar imagem.');
-  } finally {
-    statusEl.textContent = 'online';
-  }
-}
-
-function appendWaBubble(type, text, trustedHtml = false) {
-  const container = document.getElementById('waMessagesContainer');
-  const bubble = document.createElement('div');
-  bubble.className = `wa-bubble ${type}`;
-
-  const safeText = trustedHtml ? text : escapeHtml(text);
-  const formattedText = safeText
-    .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
-    .replace(/\n/g, '<br>');
-
-  bubble.innerHTML = `
-    <div>${formattedText}</div>
-    <span class="wa-time">${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-  `;
-
-  container.appendChild(bubble);
-  container.scrollTop = container.scrollHeight;
-}
-
-function renderTelemetryTools(tools, provider) {
-  const container = document.getElementById('telemetryLogsContainer');
-  const empty = container.querySelector('.telemetry-empty');
-  if (empty) empty.remove();
-
-  tools.forEach(t => {
-    let actionTitle = 'Ação Comercial';
-    let iconClass = 'fa-solid fa-bolt';
-    let summaryHtml = '';
-
-    if (t.name === 'buscar_estoque') {
-      actionTitle = 'Consulta ao Estoque do Pátio';
-      iconClass = 'fa-solid fa-car-side';
-      const count = (t.result && t.result.veiculos) ? t.result.veiculos.length : 0;
-      summaryHtml = `
-        <div style="font-size: 0.85rem; color: #fff; margin-bottom: 4px;">
-          <strong>${count} veículo(s)</strong> localizado(s) no showroom.
-        </div>
-        <div style="font-size: 0.78rem; color: var(--text-secondary);">
-          Filtros: ${escapeHtml(t.args.marca) || 'Qualquer'} ${escapeHtml(t.args.modelo) || ''} ${t.args.tipoCarroceria ? `(${escapeHtml(t.args.tipoCarroceria)})` : ''} ${t.args.precoMax ? `até R$ ${Number(t.args.precoMax).toLocaleString('pt-BR')}` : ''}
-        </div>
-      `;
-    } else if (t.name === 'simular_financiamento') {
-      actionTitle = 'Cálculo de Financiamento Automático';
-      iconClass = 'fa-solid fa-calculator';
-      const sim = t.result?.simulacao || {};
-      summaryHtml = `
-        <div style="font-size: 0.85rem; color: #4ade80; margin-bottom: 4px;">
-          <strong>Entrada:</strong> R$ ${Number(sim.entrada || 0).toLocaleString('pt-BR')} | <strong>${sim.parcelas || 48}x</strong> de <strong>R$ ${Number(sim.valorParcela || 0).toLocaleString('pt-BR')}</strong>
-        </div>
-        <div style="font-size: 0.78rem; color: var(--text-secondary);">
-          Simulação apresentada instantaneamente ao comprador.
-        </div>
-      `;
-    } else if (t.name === 'agendar_test_drive') {
-      actionTitle = 'Visita / Test-Drive Agendado!';
-      iconClass = 'fa-solid fa-calendar-check';
-      summaryHtml = `
-        <div style="font-size: 0.85rem; color: #38bdf8; margin-bottom: 4px;">
-          <strong>Data/Horário:</strong> ${escapeHtml(t.args.dataHora) || 'Horário comercial'}
-        </div>
-        <div style="font-size: 0.78rem; color: var(--text-secondary);">
-          Vendedor da loja escalado para receber o cliente no showroom.
-        </div>
-      `;
-    } else if (t.name === 'salvar_qualificacao_lead') {
-      actionTitle = 'Ficha de Qualificação do Comprador';
-      iconClass = 'fa-solid fa-user-check';
-      summaryHtml = `
-        <div style="font-size: 0.82rem; color: #fff; line-height: 1.4;">
-          ${t.args.carroTroca ? `🚗 <strong>Possui carro na troca:</strong> ${escapeHtml(t.args.carroTroca)}<br>` : ''}
-          ${t.args.valorEntrada ? `💵 <strong>Entrada disponível:</strong> R$ ${Number(t.args.valorEntrada).toLocaleString('pt-BR')}<br>` : ''}
-          ${t.args.urgenciaCompra ? `⏱️ <strong>Prazo de compra:</strong> ${escapeHtml(t.args.urgenciaCompra)}` : ''}
-        </div>
-      `;
-    } else {
-      actionTitle = 'Atendimento ao Cliente';
-      iconClass = 'fa-solid fa-check-double';
-      summaryHtml = `<div style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(JSON.stringify(t.args))}</div>`;
-    }
-
-    const logItem = document.createElement('div');
-    logItem.className = 'tool-event';
-    logItem.style.borderLeft = '3px solid var(--accent-cyan)';
-    logItem.style.background = 'rgba(255, 255, 255, 0.03)';
-    logItem.style.padding = '10px 14px';
-    logItem.style.borderRadius = '8px';
-    logItem.style.marginBottom = '8px';
-
-    logItem.innerHTML = `
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-        <span style="font-size: 0.82rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
-          <i class="${iconClass}" style="color: var(--accent-cyan);"></i> ${actionTitle}
-        </span>
-        <span style="font-size: 0.7rem; color: var(--text-muted);">${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+  // Optimistically append bubble to container
+  const container = document.getElementById('liveChatMessagesStream');
+  if (container) {
+    const bubble = document.createElement('div');
+    bubble.className = 'livechat-bubble outgoing';
+    bubble.innerHTML = `
+      <div class="bubble-header-row">
+        <span class="bubble-sender-name" style="color: var(--primary);"><i class="fa-solid fa-user-tie"></i> Vendedor da Loja</span>
+        <span class="bubble-timestamp">${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
-      ${summaryHtml}
+      <div class="bubble-body-text">${escapeHtml(message).replace(/\n/g, '<br>')}</div>
     `;
-    container.appendChild(logItem);
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  try {
+    const res = await fetch('/api/chat/send-human', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        leadId: activeChatLeadId,
+        message
+      })
+    });
+    const json = await res.json();
+    if (!json.success) {
+      alert('Aviso: Não foi possível enviar mensagem pelo WhatsApp (' + (json.error || 'Erro de conexão') + ')');
+    }
+    loadLiveConversations(true);
+    renderLiveChatMessages(activeChatLeadId, true);
+  } catch (err) {
+    console.error('Erro ao enviar mensagem humana:', err);
+  }
+}
+
+function openLeadDetailsFromChat() {
+  if (activeChatLeadId) {
+    openLeadDetails(activeChatLeadId);
+  }
+}
+
+// ==========================================
+// 6.1 BASE DE CONHECIMENTO & TREINAMENTO DA IA (RAG)
+// ==========================================
+
+async function loadKnowledgeList() {
+  try {
+    const res = await fetch('/api/knowledge');
+    const json = await res.json();
+    if (!json.success) return;
+
+    knowledgeData = json.data || [];
+    const countEl = document.getElementById('countAllKnowledge');
+    if (countEl) countEl.textContent = knowledgeData.length;
+
+    renderKnowledgeCards();
+  } catch (err) {
+    console.error('Erro ao carregar base de conhecimento:', err);
+  }
+}
+
+function filterKnowledgeCategory(cat) {
+  currentKnowledgeCat = cat;
+  document.querySelectorAll('#knowledgeCategoryFilterBar .filter-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.cat === cat);
+  });
+  renderKnowledgeCards();
+}
+
+function renderKnowledgeCards() {
+  const container = document.getElementById('knowledgeCardsContainer');
+  if (!container) return;
+
+  const filtered = knowledgeData.filter(k => {
+    if (currentKnowledgeCat === 'all') return true;
+    return k.category === currentKnowledgeCat;
   });
 
-  container.scrollTop = container.scrollHeight;
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div style="grid-column: 1/-1; text-align: center; padding: 48px 20px; background: var(--bg-card); border-radius: var(--radius-lg); border: 1px dashed var(--border-color);">
+        <i class="fa-solid fa-brain" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 12px; display: block;"></i>
+        <h4 style="color: #fff; margin-bottom: 6px;">Nenhuma Pergunta Cadastrada Nesta Categoria</h4>
+        <p style="color: var(--text-secondary); font-size: 0.85rem; max-width: 440px; margin: 0 auto 16px;">
+          Cadastre perguntas frequentes e regras para treinar a IA a responder aos clientes automaticamente no WhatsApp.
+        </p>
+        <button class="btn btn-primary" onclick="openNewKnowledgeModal()">
+          <i class="fa-solid fa-plus"></i> Cadastrar Pergunta
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  const categoryLabels = {
+    financiamento: 'Financiamento',
+    troca: 'Troca / Usado',
+    garantia: 'Garantia & Laudo',
+    documentacao: 'Documentação',
+    loja: 'Regras da Loja',
+    geral: 'Geral'
+  };
+
+  container.innerHTML = filtered.map(k => {
+    const keywordsList = k.keywords ? k.keywords.split(',').map(kw => kw.trim()).filter(Boolean) : [];
+    return `
+      <div class="knowledge-card">
+        <div class="knowledge-card-header">
+          <span class="knowledge-cat-badge ${escapeHtml(k.category)}">
+            ${categoryLabels[k.category] || escapeHtml(k.category)}
+          </span>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn-icon" title="Editar" onclick="editKnowledgeItem(${k.id})">
+              <i class="fa-solid fa-pen" style="font-size: 0.72rem;"></i>
+            </button>
+            <button class="btn-icon" title="Excluir" onclick="deleteKnowledgeItem(${k.id})" style="color: #ef4444;">
+              <i class="fa-solid fa-trash" style="font-size: 0.72rem;"></i>
+            </button>
+          </div>
+        </div>
+        <h4 class="knowledge-question">
+          <i class="fa-solid fa-circle-question" style="color: var(--primary); margin-right: 6px;"></i>
+          ${escapeHtml(k.question)}
+        </h4>
+        <div class="knowledge-answer">
+          ${escapeHtml(k.answer)}
+        </div>
+        ${keywordsList.length > 0 ? `
+          <div class="knowledge-keywords-row">
+            ${keywordsList.map(kw => `<span class="keyword-tag"><i class="fa-solid fa-tag"></i> ${escapeHtml(kw)}</span>`).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function openNewKnowledgeModal() {
+  const form = document.getElementById('knowledgeForm');
+  if (form) form.reset();
+  const editId = document.getElementById('knowledgeEditId');
+  if (editId) editId.value = '';
+  const title = document.getElementById('knowledgeModalTitle');
+  if (title) title.innerHTML = '<i class="fa-solid fa-brain"></i> Nova Pergunta & Resposta (RAG)';
+  const modal = document.getElementById('knowledgeModal');
+  if (modal) modal.classList.add('active');
+}
+
+function closeKnowledgeModal() {
+  const modal = document.getElementById('knowledgeModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function editKnowledgeItem(id) {
+  const item = knowledgeData.find(k => k.id === id);
+  if (!item) return;
+
+  document.getElementById('knowledgeEditId').value = item.id;
+  document.getElementById('kCategory').value = item.category;
+  document.getElementById('kQuestion').value = item.question;
+  document.getElementById('kAnswer').value = item.answer;
+  document.getElementById('kKeywords').value = item.keywords || '';
+
+  const title = document.getElementById('knowledgeModalTitle');
+  if (title) title.innerHTML = '<i class="fa-solid fa-pen"></i> Editar Pergunta & Resposta (RAG)';
+
+  const modal = document.getElementById('knowledgeModal');
+  if (modal) modal.classList.add('active');
+}
+
+async function handleSaveKnowledge(e) {
+  e.preventDefault();
+  const editId = document.getElementById('knowledgeEditId').value;
+  const category = document.getElementById('kCategory').value;
+  const question = document.getElementById('kQuestion').value.trim();
+  const answer = document.getElementById('kAnswer').value.trim();
+  const keywords = document.getElementById('kKeywords').value.trim();
+
+  try {
+    const method = editId ? 'PUT' : 'POST';
+    const url = editId ? `/api/knowledge/${editId}` : '/api/knowledge';
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, question, answer, keywords })
+    });
+    const json = await res.json();
+    if (json.success) {
+      closeKnowledgeModal();
+      loadKnowledgeList();
+    } else {
+      alert('Erro ao salvar: ' + json.error);
+    }
+  } catch (err) {
+    alert('Erro de conexão ao salvar na base de conhecimento');
+  }
+}
+
+function openBulkKnowledgeModal() {
+  const modal = document.getElementById('bulkKnowledgeModal');
+  if (modal) modal.classList.add('active');
+}
+
+function closeBulkKnowledgeModal() {
+  const modal = document.getElementById('bulkKnowledgeModal');
+  if (modal) modal.classList.remove('active');
+}
+
+async function submitBulkKnowledge() {
+  const textarea = document.getElementById('bulkKnowledgeInput');
+  const rawText = textarea.value.trim();
+  if (!rawText) {
+    alert('Cole pelo menos uma pergunta e resposta no formato solicitado');
+    return;
+  }
+
+  const lines = rawText.split('\n');
+  const items = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const parts = trimmed.split('|').map(p => p.trim());
+    if (parts.length >= 2) {
+      items.push({
+        question: parts[0],
+        answer: parts[1],
+        category: parts[2] || 'geral',
+        keywords: parts[3] || ''
+      });
+    }
+  }
+
+  if (items.length === 0) {
+    alert('Nenhuma pergunta válida encontrada. Certifique-se de separar pergunta e resposta com " | "');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/knowledge/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items })
+    });
+    const json = await res.json();
+    if (json.success) {
+      alert(`Sucesso! ${json.summary.importedCount} perguntas cadastradas e indexadas no RAG.`);
+      textarea.value = '';
+      closeBulkKnowledgeModal();
+      loadKnowledgeList();
+    } else {
+      alert('Erro: ' + json.error);
+    }
+  } catch (err) {
+    alert('Erro ao importar perguntas em lote');
+  }
+}
+
+async function deleteKnowledgeItem(id) {
+  if (!confirm('Deseja realmente remover esta pergunta da base de conhecimento da IA?')) return;
+
+  try {
+    const res = await fetch(`/api/knowledge/${id}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.success) {
+      loadKnowledgeList();
+    } else {
+      alert('Erro ao excluir: ' + json.error);
+    }
+  } catch (err) {
+    alert('Erro ao excluir pergunta');
+  }
 }
 
 // ==========================================

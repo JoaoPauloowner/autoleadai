@@ -2,6 +2,7 @@ const agent = require('../ai/agent');
 const db = require('../config/database');
 const { calculateLeadScore } = require('../ai/scorer');
 const multimodal = require('../ai/multimodal');
+const whatsappService = require('../services/whatsappService');
 
 exports.sendMessage = async (req, res) => {
   try {
@@ -164,3 +165,115 @@ exports.resetSimulator = (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+/**
+ * Retorna lista de conversas reais de WhatsApp com último resumo, unread e status de IA
+ */
+exports.getLiveConversations = (req, res) => {
+  try {
+    const leads = db.prepare(`
+      SELECT 
+        l.id, l.name, l.phone, l.channel, l.status, l.score, 
+        COALESCE(l.ai_enabled, 1) as ai_enabled, 
+        l.ai_summary, l.last_inbound_at, l.last_outbound_at, l.updated_at,
+        v.model as car_model, v.make as car_make,
+        (SELECT content FROM chat_messages WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1) as last_message,
+        (SELECT sender FROM chat_messages WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1) as last_sender,
+        (SELECT created_at FROM chat_messages WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
+        (SELECT COUNT(*) FROM chat_messages WHERE lead_id = l.id) as message_count
+      FROM leads l
+      LEFT JOIN vehicles v ON l.interested_vehicle_id = v.id
+      WHERE (SELECT COUNT(*) FROM chat_messages WHERE lead_id = l.id) > 0 OR l.channel = 'whatsapp'
+      ORDER BY COALESCE(last_message_at, l.last_inbound_at, l.created_at) DESC
+      LIMIT 100
+    `).all();
+
+    res.json({ success: true, count: leads.length, data: leads });
+  } catch (error) {
+    console.error('Erro ao buscar conversas ao vivo:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Envia mensagem humana digitada pelo vendedor no painel diretamente para o WhatsApp do cliente
+ */
+exports.sendHumanMessage = async (req, res) => {
+  try {
+    const { leadId, message } = req.body;
+    if (!leadId) {
+      return res.status(400).json({ success: false, error: 'ID do lead é obrigatório' });
+    }
+    if (!message || !message.trim()) {
+      return res.status(400).json({ success: false, error: 'Mensagem não pode ser vazia' });
+    }
+
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId);
+    if (!lead) {
+      return res.status(404).json({ success: false, error: 'Lead não encontrado' });
+    }
+
+    // Salva a mensagem no histórico do chat como assistente/vendedor
+    db.prepare(`
+      INSERT INTO chat_messages (lead_id, sender, content)
+      VALUES (?, 'assistant', ?)
+    `).run(lead.id, message.trim());
+
+    // Se o vendedor respondeu, mantém o modo de atendimento humano ativo (ai_enabled = 0)
+    db.prepare(`
+      UPDATE leads 
+      SET last_outbound_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP, ai_enabled = 0 
+      WHERE id = ?
+    `).run(lead.id);
+
+    let sentViaWhatsApp = false;
+    let whatsappError = null;
+
+    // Se o telefone for real e o WhatsApp estiver conectado, envia de verdade
+    if (lead.phone && !lead.phone.startsWith('sim_')) {
+      try {
+        await whatsappService.sendTextMessage(lead.phone, message.trim());
+        sentViaWhatsApp = true;
+      } catch (waErr) {
+        console.warn('Aviso ao enviar via WhatsApp:', waErr.message);
+        whatsappError = waErr.message;
+      }
+    }
+
+    res.json({
+      success: true,
+      sentViaWhatsApp,
+      whatsappError,
+      message: 'Mensagem enviada com sucesso!'
+    });
+  } catch (error) {
+    console.error('Erro no envio de mensagem humana:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Alterna status de IA para um lead (1: IA Ativa, 0: Vendedor Humano)
+ */
+exports.toggleLeadAiStatus = (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ai_enabled } = req.body;
+
+    const newStatus = ai_enabled ? 1 : 0;
+    db.prepare(`
+      UPDATE leads 
+      SET ai_enabled = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).run(newStatus, id);
+
+    res.json({
+      success: true,
+      ai_enabled: newStatus,
+      message: newStatus === 1 ? 'IA reativada para este atendimento' : 'Vendedor humano assumiu o atendimento'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+

@@ -7,6 +7,7 @@ const bookingController = require('../controllers/bookingController');
 const chatController = require('../controllers/chatController');
 const taskController = require('../controllers/taskController');
 const importController = require('../controllers/importController');
+const knowledgeController = require('../controllers/knowledgeController');
 const auditService = require('../services/auditService');
 const config = require('../config/ai-provider');
 const settingsStore = require('../config/settings-store');
@@ -43,12 +44,22 @@ router.post('/imports/leads', importController.importLeadsCsv);
 router.get('/test-drives', bookingController.listTestDrives);
 router.patch('/test-drives/:id/status', bookingController.updateTestDriveStatus);
 
-// Rotas do Chat / Atendimento
+// Rotas do Atendimento ao Vivo (Live Inbox WhatsApp) e Chat
+router.get('/chat/conversations', chatController.getLiveConversations);
+router.post('/chat/send-human', chatController.sendHumanMessage);
+router.patch('/leads/:id/ai-status', chatController.toggleLeadAiStatus);
 router.post('/chat/send', chatController.sendMessage);
 router.post('/chat/send-audio', chatController.sendAudioMessage);
 router.post('/chat/send-photo', chatController.sendVehiclePhoto);
 router.get('/chat/messages/:leadId', chatController.getMessages);
 router.post('/chat/reset', chatController.resetSimulator);
+
+// Rotas da Base de Conhecimento e RAG da Concessionária (Treinamento da IA)
+router.get('/knowledge', knowledgeController.listKnowledge);
+router.post('/knowledge', knowledgeController.createKnowledge);
+router.post('/knowledge/bulk', knowledgeController.bulkImportKnowledge);
+router.put('/knowledge/:id', knowledgeController.updateKnowledge);
+router.delete('/knowledge/:id', knowledgeController.deleteKnowledge);
 
 // Rotas de Conexão WhatsApp por QR Code Nativamente
 const whatsappService = require('../services/whatsappService');

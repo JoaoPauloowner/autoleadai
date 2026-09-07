@@ -2108,4 +2108,581 @@ body.light-mode .btn-outline:hover {
   .radio-cards {
     grid-template-columns: 1fr;
   }
+
+  .livechat-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+}
+
+/* ==========================================================================
+   CENTRAL DE ATENDIMENTO AO VIVO (LIVE WHATSAPP INBOX)
+   ========================================================================== */
+
+.livechat-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 20px;
+  height: calc(100dvh - 120px);
+  align-items: stretch;
+}
+
+.livechat-sidebar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.livechat-search-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.search-box-inbox {
+  position: relative;
+}
+
+.search-box-inbox i {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.search-box-inbox input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--neutral);
+  padding: 9px 12px 9px 34px;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 0.82rem;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.search-box-inbox input:focus {
+  border-color: var(--primary);
+}
+
+.livechat-filter-pills {
+  display: flex;
+  gap: 6px;
+}
+
+.filter-pill {
+  background: var(--secondary);
+  border: 1px solid var(--neutral);
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.filter-pill:hover {
+  background: rgba(118, 185, 0, 0.1);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.filter-pill.active {
+  background: var(--primary);
+  color: var(--bg-primary);
+  border-color: var(--primary);
+}
+
+.livechat-conversations-list {
+  flex-grow: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.livechat-convo-item {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  transition: background var(--transition-fast);
+  position: relative;
+}
+
+.livechat-convo-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.livechat-convo-item.active {
+  background: rgba(118, 185, 0, 0.08);
+  border-left: 3px solid var(--primary);
+}
+
+.convo-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--secondary), #383838);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  border: 1px solid var(--neutral);
+}
+
+.convo-avatar.ai-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 8px var(--primary-glow);
+}
+
+.convo-content {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.convo-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+
+.convo-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.convo-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.convo-last-msg {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 6px;
+}
+
+.convo-meta-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.convo-badge-ai {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-tint);
+  color: var(--primary);
+  border: 1px solid rgba(118, 185, 0, 0.4);
+  font-weight: 600;
+}
+
+.convo-badge-human {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  font-weight: 600;
+}
+
+/* Janela Principal do Live Chat */
+.livechat-main {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  position: relative;
+}
+
+.livechat-empty-state {
+  margin: auto;
+  text-align: center;
+  max-width: 480px;
+  padding: 40px 20px;
+}
+
+.empty-icon-wrap {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(110, 250, 95, 0.1);
+  border: 1.5px solid rgba(110, 250, 95, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  color: var(--success);
+  margin: 0 auto 20px auto;
+}
+
+.livechat-empty-state h3 {
+  font-size: 1.3rem;
+  margin-bottom: 10px;
+}
+
+.livechat-empty-state p {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.livechat-empty-hint {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.livechat-active-window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.livechat-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.18);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.livechat-lead-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.livechat-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--surface));
+  color: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.livechat-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.livechat-title-row h4 {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.channel-badge {
+  font-size: 0.72rem;
+  background: rgba(110, 250, 95, 0.15);
+  color: var(--success);
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  border: 1px solid rgba(110, 250, 95, 0.3);
+}
+
+.livechat-lead-info p {
+  font-size: 0.82rem;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+.livechat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ai-control-switch-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-primary);
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.ai-switch-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.btn-ai-toggle {
+  background: var(--primary);
+  color: var(--bg-primary);
+  border: none;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all var(--transition-fast);
+}
+
+.btn-ai-toggle.human-active {
+  background: var(--warning);
+  color: #000;
+}
+
+.livechat-deal-summary {
+  background: #191E24;
+  border-bottom: 1px solid var(--border-color);
+  padding: 8px 22px;
+  display: flex;
+  gap: 24px;
+  font-size: 0.78rem;
+  overflow-x: auto;
+}
+
+.deal-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.deal-item span {
+  color: var(--text-muted);
+}
+
+.deal-item strong {
+  color: var(--text-primary);
+}
+
+.livechat-messages-container {
+  flex-grow: 1;
+  padding: 20px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-image: radial-gradient(rgba(118, 185, 0, 0.04) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+.livechat-msg-row {
+  display: flex;
+  flex-direction: column;
+  max-width: 75%;
+}
+
+.livechat-msg-row.incoming {
+  align-self: flex-start;
+}
+
+.livechat-msg-row.outgoing {
+  align-self: flex-end;
+}
+
+.livechat-bubble {
+  padding: 11px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.livechat-msg-row.incoming .livechat-bubble {
+  background: var(--wa-bubble-in);
+  color: #E9EDEF;
+  border-top-left-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.livechat-msg-row.outgoing .livechat-bubble {
+  background: var(--wa-bubble-out);
+  color: #FFFFFF;
+  border-top-right-radius: 2px;
+  border: 1px solid rgba(110, 250, 95, 0.25);
+}
+
+.livechat-msg-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.livechat-msg-row.outgoing .livechat-msg-meta {
+  justify-content: flex-end;
+}
+
+.sender-tag {
+  font-weight: 600;
+}
+
+.sender-tag.ai { color: var(--primary); }
+.sender-tag.human { color: var(--warning); }
+
+.livechat-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.15);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.livechat-footer input {
+  flex-grow: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--neutral);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.livechat-footer input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+/* ==========================================================================
+   BASE DE CONHECIMENTO & RAG
+   ========================================================================== */
+
+.knowledge-category-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.knowledge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 20px;
+}
+
+.knowledge-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow-card);
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.knowledge-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+}
+
+.k-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.k-cat-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+  border: 1px solid var(--neutral);
+  color: var(--primary);
+}
+
+.k-question {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.k-answer {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  background: var(--bg-primary);
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.k-keywords-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.k-kw-tag {
+  font-size: 0.68rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--neutral);
+  color: var(--accent);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.k-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
 }

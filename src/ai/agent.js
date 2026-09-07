@@ -59,7 +59,16 @@ async function processMessage({ leadId, userMessage, channel = 'simulator' }) {
     LIMIT 20
   `).all(lead.id);
 
-  const systemPrompt = getSystemPrompt(lead);
+  const { searchRelevantKnowledge, formatKnowledgeForPrompt } = require('./knowledgeRAG');
+  const relevantKnowledge = searchRelevantKnowledge(userMessage, 3);
+  const ragContext = formatKnowledgeForPrompt(relevantKnowledge);
+
+  let systemPrompt = getSystemPrompt(lead);
+  if (ragContext) {
+    systemPrompt += ragContext;
+    console.log(`📚 [RAG] ${relevantKnowledge.length} item(ns) de conhecimento ativado(s) para a mensagem.`);
+  }
+
   const executedToolsLog = [];
   let replyText = '';
 

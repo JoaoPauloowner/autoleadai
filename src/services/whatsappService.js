@@ -127,14 +127,32 @@ async function startWhatsApp() {
           let lead = db.prepare('SELECT * FROM leads WHERE phone = ?').get(senderPhone);
           if (!lead) {
             const stmt = db.prepare(`
-              INSERT INTO leads (name, phone, channel, status)
-              VALUES (?, ?, 'whatsapp', 'novo')
+              INSERT INTO leads (name, phone, channel, status, ai_enabled)
+              VALUES (?, ?, 'whatsapp', 'novo', 1)
             `);
             const r = stmt.run(pushName, senderPhone);
             lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(r.lastInsertRowid);
           }
 
-          // Sinaliza digitando... no WhatsApp para ficar super humanizado
+          // Se o vendedor humano assumiu (ai_enabled === 0), salva a mensagem recebida e NÃO responde via IA
+          if (lead.ai_enabled === 0) {
+            db.prepare(`
+              INSERT INTO chat_messages (lead_id, sender, content)
+              VALUES (?, 'user', ?)
+            `).run(lead.id, messageText);
+
+            db.prepare(`
+              UPDATE leads 
+              SET last_inbound_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+              WHERE id = ?
+            `).run(lead.id);
+
+            console.log(`👤 [Atendimento Humano] Mensagem de ${pushName} (${senderPhone}) aguardando resposta manual.`);
+            continue;
+          }
+
+          // Se a IA estiver ativa (ai_enabled !== 0):
+          // Sinaliza digitando... no WhatsApp para ficar humanizado
           await sock.sendPresenceUpdate('composing', senderJid);
 
           // Processa com o cérebro de IA
@@ -147,7 +165,7 @@ async function startWhatsApp() {
           // Finaliza o status de digitando e responde
           await sock.sendPresenceUpdate('paused', senderJid);
           await sock.sendMessage(senderJid, { text: aiResult.reply });
-          console.log(`🤖 [WhatsApp Respondido] Para: ${senderPhone}`);
+          console.log(`🤖 [WhatsApp Respondido pela IA] Para: ${senderPhone}`);
         } catch (msgErr) {
           console.error('Erro ao processar mensagem do WhatsApp:', msgErr);
         }
@@ -188,6 +206,34 @@ function getWhatsAppStatus() {
   };
 }
 
+/**
+ * Envio direto de mensagem para um número de WhatsApp real (usado pelo vendedor no painel)
+ */
+async function sendTextMessage(toPhone, text) {
+  if (!sock || connectionStatus !== 'connected') {
+    throw new Error('WhatsApp não está conectado no momento. Conecte pelo QR Code antes de enviar.');
+  }
+
+  const cleanPhone = String(toPhone).replace(/\D/g, '');
+  if (!cleanPhone || cleanPhone.length < 8) {
+    throw new Error('Número de telefone inválido para envio no WhatsApp');
+  }
+
+  const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+  const jid = `${finalPhone}@s.whatsapp.net`;
+
+  try {
+    await sock.sendPresenceUpdate('composing', jid);
+    const result = await sock.sendMessage(jid, { text: String(text).trim() });
+    await sock.sendPresenceUpdate('paused', jid);
+    console.log(`📤 [WhatsApp Vendedor] Mensagem enviada para: ${finalPhone}`);
+    return result;
+  } catch (err) {
+    console.error(`Erro ao enviar mensagem para ${finalPhone}:`, err.message);
+    throw err;
+  }
+}
+
 // Se já houver credenciais salvas, inicializa a conexão automaticamente
 if (fs.existsSync(path.join(sessionDir, 'creds.json'))) {
   console.log('🔄 [WhatsApp] Sessão salva encontrada. Conectando automaticamente...');
@@ -197,5 +243,6 @@ if (fs.existsSync(path.join(sessionDir, 'creds.json'))) {
 module.exports = {
   startWhatsApp,
   disconnectWhatsApp,
-  getWhatsAppStatus
+  getWhatsAppStatus,
+  sendTextMessage
 };

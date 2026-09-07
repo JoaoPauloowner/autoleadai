@@ -70,6 +70,7 @@ function initDatabase() {
       last_inbound_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       last_outbound_at DATETIME,
       is_demo_data INTEGER DEFAULT 0,
+      ai_enabled INTEGER DEFAULT 1,    -- 1: IA atende no WhatsApp | 0: Vendedor humano assumiu
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (interested_vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL
@@ -135,6 +136,17 @@ function initDatabase() {
       details TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS store_knowledge (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id TEXT DEFAULT 'default',
+      category TEXT DEFAULT 'geral', -- 'financiamento', 'troca', 'garantia', 'loja', 'documentacao'
+      question TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      keywords TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   try {
@@ -173,7 +185,64 @@ function initDatabase() {
   addColumnIfNotExists('leads', 'last_inbound_at', 'DATETIME');
   addColumnIfNotExists('leads', 'last_outbound_at', 'DATETIME');
   addColumnIfNotExists('leads', 'is_demo_data', 'INTEGER DEFAULT 0');
+  addColumnIfNotExists('leads', 'ai_enabled', 'INTEGER DEFAULT 1');
   addColumnIfNotExists('chat_messages', 'copilot_status', "TEXT DEFAULT 'approved'");
+
+  // Sementes padrão da Base de Conhecimento (RAG) da concessionária
+  try {
+    const existingCount = db.prepare('SELECT COUNT(*) as count FROM store_knowledge').get();
+    if (!existingCount || existingCount.count === 0) {
+      const insertKnowledge = db.prepare(`
+        INSERT INTO store_knowledge (category, question, answer, keywords)
+        VALUES (?, ?, ?, ?)
+      `);
+      const defaultKnowledge = [
+        [
+          'financiamento',
+          'Vocês financiam sem entrada ou com entrada facilitada?',
+          'Sim! Trabalhamos com mais de 10 bancos e financeiras parceiras, com planos sem entrada (sujeito à análise de crédito do CPF) ou parcelamento da entrada em até 18x no cartão de crédito.',
+          'financiamento, sem entrada, entrada facilitada, cartao, parcelar entrada, bancos'
+        ],
+        [
+          'troca',
+          'A loja aceita meu carro ou moto usado na troca?',
+          'Com certeza! Avaliamos o seu seminovo ou moto com excelente avaliação de mercado na troca. O valor pode ser usado como entrada integral no seu novo veículo.',
+          'troca, usado, avaliar usado, pegar na troca, moto na troca, carro na troca'
+        ],
+        [
+          'troca',
+          'Vocês aceitam carro financiado ou com dívida na troca?',
+          'Sim! Avaliamos seu veículo, quitamos o saldo devedor restante junto ao banco e a diferença você utiliza como entrada na compra do seu novo seminovo.',
+          'carro financiado, divida, saldo devedor, quitar financiamento'
+        ],
+        [
+          'garantia',
+          'Como funciona a garantia dos veículos seminovos?',
+          'Todos os nossos seminovos passam por rigorosa perícia cautelar aprovada e contam com 1 ano de garantia completa para motor e câmbio em todo o território nacional.',
+          'garantia, 1 ano, motor, cambio, cautelar, revisao'
+        ],
+        [
+          'documentacao',
+          'Quais documentos preciso enviar para aprovar a ficha de financiamento?',
+          'Para análise rápida basta informar seu CPF, data de nascimento e número de telefone. Para assinatura do contrato, serão necessários CNH/RG, comprovante de residência atualizado e comprovante de renda.',
+          'documentos, aprovar ficha, cpf, cnh, comprovante'
+        ],
+        [
+          'loja',
+          'Onde a loja fica localizada e qual o horário de funcionamento?',
+          'Estamos localizados na Av. dos Bandeirantes, 1500 (São Paulo - SP), com estacionamento próprio para clientes. Atendemos de segunda a sexta das 08h às 19h e aos sábados das 09h às 16h.',
+          'endereco, onde fica, localizacao, horario, sabado, funcionamento'
+        ]
+      ];
+
+      for (const item of defaultKnowledge) {
+        insertKnowledge.run(item[0], item[1], item[2], item[3]);
+      }
+      console.log('📚 [RAG] Base de conhecimento da concessionária inicializada com 6 perguntas oficiais.');
+    }
+  } catch (seedErr) {
+    console.warn('Aviso ao inicializar store_knowledge:', seedErr.message);
+  }
 
   // Modo de produção: Inicializa tabelas limpas sem dados fictícios
   // Para adicionar veículos, use a interface web, planilha CSV ou a rota de ERP

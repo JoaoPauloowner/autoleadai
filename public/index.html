@@ -35,14 +35,18 @@
           <i class="fa-solid fa-chart-pie"></i>
           <span>Visão Geral & Alertas</span>
         </button>
-        <button class="nav-item highlight" data-view="simulator">
+        <button class="nav-item highlight" data-view="livechat">
           <i class="fa-brands fa-whatsapp"></i>
-          <span>WhatsApp Comercial</span>
+          <span>Atendimento ao Vivo</span>
           <span class="nav-live-dot"></span>
         </button>
         <button class="nav-item" data-view="crm">
           <i class="fa-solid fa-filter-circle-dollar"></i>
           <span>Funil de Vendas</span>
+        </button>
+        <button class="nav-item" data-view="knowledge">
+          <i class="fa-solid fa-brain"></i>
+          <span>Base de Conhecimento (RAG)</span>
         </button>
         <button class="nav-item" data-view="testdrives">
           <i class="fa-solid fa-calendar-check"></i>
@@ -186,91 +190,103 @@
         </div>
       </section>
 
-      <!-- VIEW: Central WhatsApp & Atendimento ao Vivo -->
-      <section id="view-simulator" class="content-view">
-        <div class="simulator-layout">
-          <!-- Smartphone WhatsApp Frame -->
-          <div class="phone-frame">
-            <div class="phone-notch"></div>
-            <div class="whatsapp-screen">
-              <!-- Header WhatsApp -->
-              <div class="wa-header">
-                <div class="wa-contact-info">
-                  <div class="wa-avatar">
-                    <i class="fa-solid fa-user-tie"></i>
+      <!-- VIEW: Central de Atendimento ao Vivo (Live WhatsApp Inbox) -->
+      <section id="view-livechat" class="content-view">
+        <div class="livechat-layout">
+          <!-- Coluna 1: Lista de Conversas do WhatsApp -->
+          <div class="livechat-sidebar">
+            <div class="livechat-search-header">
+              <div class="search-box-inbox">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="liveChatSearchInput" placeholder="Buscar cliente ou telefone..." oninput="filterLiveConversations()">
+              </div>
+              <div class="livechat-filter-pills">
+                <button class="filter-pill active" data-filter="all" onclick="setLiveFilter('all')">Todos (<span id="countAllChats">0</span>)</button>
+                <button class="filter-pill" data-filter="ai" onclick="setLiveFilter('ai')"><i class="fa-solid fa-robot"></i> IA Ativa</button>
+                <button class="filter-pill" data-filter="human" onclick="setLiveFilter('human')"><i class="fa-solid fa-user"></i> Vendedor</button>
+              </div>
+            </div>
+
+            <div class="livechat-conversations-list" id="liveChatListContainer">
+              <!-- Renderizado dinamicamente via JS -->
+            </div>
+          </div>
+
+          <!-- Coluna 2: Janela de Atendimento do Chat -->
+          <div class="livechat-main">
+            <!-- Estado Vazio (Nenhuma conversa selecionada) -->
+            <div class="livechat-empty-state" id="liveChatEmptyState">
+              <div class="empty-icon-wrap">
+                <i class="fa-brands fa-whatsapp"></i>
+              </div>
+              <h3>Central de Atendimento ao Vivo</h3>
+              <p>Selecione um cliente ao lado para acompanhar as conversas em tempo real, alternar para atendimento humano ou responder diretamente pelo WhatsApp da concessionária.</p>
+              <div class="livechat-empty-hint">
+                <span><i class="fa-solid fa-circle-check" style="color: var(--success);"></i> WhatsApp Conectado e Pronto para Atender Clientes</span>
+              </div>
+            </div>
+
+            <!-- Janela da Conversa Ativa -->
+            <div class="livechat-active-window" id="liveChatActiveWindow" style="display: none;">
+              <!-- Header da Conversa -->
+              <div class="livechat-header">
+                <div class="livechat-lead-info">
+                  <div class="livechat-avatar" id="activeChatAvatar">
+                    <i class="fa-solid fa-user"></i>
                   </div>
-                  <div class="wa-details">
-                    <h4 id="waAttendantTitle">Lucas | Consultor AutoPrime</h4>
-                    <span id="waTypingStatus">online • Atendimento Comercial</span>
+                  <div>
+                    <div class="livechat-title-row">
+                      <h4 id="activeChatLeadName">Nome do Cliente</h4>
+                      <span class="lead-score-pill" id="activeChatScoreBadge">25 pts</span>
+                      <span class="channel-badge" id="activeChatChannel">WhatsApp</span>
+                    </div>
+                    <p id="activeChatLeadPhone">+55 11 99999-9999</p>
                   </div>
                 </div>
-                <div class="wa-actions">
-                  <button title="Reiniciar conversa de demonstração" onclick="resetSimulatorChat()">
-                    <i class="fa-solid fa-arrows-rotate"></i>
+
+                <div class="livechat-header-actions">
+                  <!-- Toggle Interativo: IA vs Vendedor Humano -->
+                  <div class="ai-control-switch-container">
+                    <span class="ai-switch-label">Controle:</span>
+                    <button type="button" class="btn-ai-toggle ai-active" id="btnToggleAiStatus" onclick="toggleCurrentChatAi()">
+                      <i class="fa-solid fa-robot" id="aiToggleIcon"></i>
+                      <span id="aiToggleText">IA Ativa (Automático)</span>
+                    </button>
+                  </div>
+                  <button class="btn btn-outline btn-sm" onclick="openLeadDetailsFromChat()" title="Abrir Ficha Completa do Cliente">
+                    <i class="fa-solid fa-id-card"></i> Ficha do Lead
                   </button>
                 </div>
               </div>
 
-              <!-- Termômetro de Compra do Cliente -->
-              <div class="active-lead-score-bar" id="activeLeadScoreBar">
-                <span id="activeScoreBadge"><i class="fa-solid fa-fire"></i> Potencial de Compra: 25%</span>
-                <small id="activeScoreDetail">Interesse: Baixo | Prazo: Pesquisa | Entrada: Não informada</small>
+              <!-- Resumo Rápido da Negociação no Topo do Chat -->
+              <div class="livechat-deal-summary" id="liveChatDealSummary">
+                <div class="deal-item">
+                  <span>Veículo de Interesse:</span>
+                  <strong id="activeChatCarInterest">Veículos em Destaque</strong>
+                </div>
+                <div class="deal-item">
+                  <span>Carro na Troca:</span>
+                  <strong id="activeChatTradeIn">Não informado</strong>
+                </div>
+                <div class="deal-item">
+                  <span>Status do Funil:</span>
+                  <strong id="activeChatStage">Novo Lead</strong>
+                </div>
               </div>
 
-              <!-- Mensagens -->
-              <div class="wa-messages" id="waMessagesContainer"></div>
-
-              <!-- Ações Rápidas de Cliente -->
-              <div class="multimodal-bar">
-                <button class="btn-multimodal" onclick="simulateSendAudio()" title="Simular cliente enviando áudio">
-                  <i class="fa-solid fa-microphone"></i> Cliente manda Áudio
-                </button>
-                <button class="btn-multimodal" onclick="simulateSendCarPhoto()"
-                  title="Simular cliente enviando foto do carro para troca">
-                  <i class="fa-solid fa-camera"></i> Foto de Carro na Troca
-                </button>
+              <!-- Stream de Mensagens do Chat -->
+              <div class="livechat-messages-container" id="liveChatMessagesStream">
+                <!-- Mensagens renderizadas via JS -->
               </div>
 
-              <div class="wa-chips">
-                <button class="chip"
-                  onclick="sendQuickPrompt('Olá! Vocês têm algum SUV automático até 110 mil no estoque?')">SUVs até
-                  110k</button>
-                <button class="chip"
-                  onclick="sendQuickPrompt('Gostei do Renegade! Posso agendar um test drive amanhã às 15h?')">Marcar
-                  Test Drive</button>
-                <button class="chip"
-                  onclick="sendQuickPrompt('Se eu der 30 mil de entrada no Renegade, quanto fica a parcela em 48x?')">Simular
-                  Parcela</button>
-                <button class="chip"
-                  onclick="sendQuickPrompt('Vocês aceitam meu Onix 2019 como entrada na troca?')">Avaliar Troca</button>
-              </div>
-
-              <!-- Input -->
-              <form class="wa-footer" id="waChatForm" onsubmit="handleSendUserMessage(event)">
-                <input type="text" id="waChatInput" placeholder="Digite uma mensagem como cliente..." autocomplete="off"
-                  required>
-                <button type="submit" class="wa-send-btn" id="waSendBtn">
-                  <i class="fa-solid fa-paper-plane"></i>
+              <!-- Barra de Envio do Vendedor -->
+              <form class="livechat-footer" id="liveChatSendForm" onsubmit="handleSendHumanMessage(event)">
+                <input type="text" id="liveChatMessageInput" placeholder="Digite uma mensagem para responder direto no WhatsApp do cliente..." autocomplete="off" required>
+                <button type="submit" class="btn btn-primary" id="btnSendHumanMessage">
+                  <i class="fa-solid fa-paper-plane"></i> Enviar
                 </button>
               </form>
-            </div>
-          </div>
-
-          <!-- Painel Lateral de Inteligência Comercial -->
-          <div class="telemetry-panel">
-            <div class="telemetry-header">
-              <h3><i class="fa-solid fa-clipboard-user"></i> Resumo Comercial do Atendimento</h3>
-              <span class="telemetry-tag" id="telemetryProviderBadge">Atendimento Automático</span>
-            </div>
-            <p class="telemetry-desc">Acompanhe em tempo real as consultas de estoque, cálculos e agendamentos
-              realizados para este cliente.</p>
-
-            <div class="telemetry-logs" id="telemetryLogsContainer">
-              <div class="telemetry-empty">
-                <i class="fa-solid fa-comments"></i>
-                <p>Nenhuma mensagem enviada nesta sessão ainda.<br>Interaja no WhatsApp ao lado para ver as ações
-                  automáticas da loja.</p>
-              </div>
             </div>
           </div>
         </div>
@@ -408,6 +424,39 @@
         </div>
 
         <div class="vehicles-grid" id="vehiclesContainer"></div>
+      </section>
+
+      <!-- VIEW: Base de Conhecimento e Treinamento da IA (RAG) -->
+      <section id="view-knowledge" class="content-view">
+        <div class="kanban-header-actions">
+          <div>
+            <h2 style="font-size: 1.4rem; font-weight: 700;"><i class="fa-solid fa-brain" style="color: var(--primary);"></i> Base de Conhecimento & Treinamento da IA (RAG)</h2>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">
+              Cadastre as perguntas frequentes, políticas de financiamento, regras de troca e garantias da loja. A IA consulta essas informações oficialmente (RAG) a cada atendimento real no WhatsApp.
+            </p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-outline" onclick="openBulkKnowledgeModal()">
+              <i class="fa-solid fa-file-import"></i> Treinar em Lote (RAG)
+            </button>
+            <button class="btn btn-primary" onclick="openNewKnowledgeModal()">
+              <i class="fa-solid fa-plus"></i> Nova Pergunta & Resposta
+            </button>
+          </div>
+        </div>
+
+        <div class="knowledge-category-bar" id="knowledgeCategoryFilterBar">
+          <button class="filter-pill active" data-cat="all" onclick="filterKnowledgeCategory('all')">Todas (<span id="countAllKnowledge">0</span>)</button>
+          <button class="filter-pill" data-cat="financiamento" onclick="filterKnowledgeCategory('financiamento')">Financiamento</button>
+          <button class="filter-pill" data-cat="troca" onclick="filterKnowledgeCategory('troca')">Troca / Usado</button>
+          <button class="filter-pill" data-cat="garantia" onclick="filterKnowledgeCategory('garantia')">Garantia & Laudo</button>
+          <button class="filter-pill" data-cat="documentacao" onclick="filterKnowledgeCategory('documentacao')">Documentação</button>
+          <button class="filter-pill" data-cat="loja" onclick="filterKnowledgeCategory('loja')">Regras da Loja</button>
+        </div>
+
+        <div class="knowledge-grid" id="knowledgeCardsContainer">
+          <!-- Renderizado dinamicamente via JS -->
+        </div>
       </section>
 
       <!-- VIEW: Configurações da Loja & Atendimento -->
@@ -853,6 +902,82 @@
             </div>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nova Pergunta & Resposta na Base de Conhecimento -->
+  <div class="modal" id="knowledgeModal">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="knowledgeModalTitle"><i class="fa-solid fa-brain"></i> Nova Pergunta & Resposta (RAG)</h3>
+          <button class="modal-close" onclick="closeKnowledgeModal()">&times;</button>
+        </div>
+        <form id="knowledgeForm" onsubmit="handleSaveKnowledge(event)">
+          <input type="hidden" id="knowledgeEditId">
+          <div style="padding: 24px;">
+            <div class="form-group">
+              <label>Categoria *</label>
+              <select id="kCategory" required>
+                <option value="financiamento">Financiamento / Parcelamento</option>
+                <option value="troca">Troca / Avaliação do Usado</option>
+                <option value="garantia">Garantia & Laudo Cautelar</option>
+                <option value="documentacao">Documentação & Aprovação</option>
+                <option value="loja">Regras da Loja / Endereço / Horários</option>
+                <option value="geral">Geral / Outros</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Pergunta Frequente do Cliente *</label>
+              <input type="text" id="kQuestion" placeholder="Ex: Vocês aceitam moto na troca?" required>
+            </div>
+
+            <div class="form-group">
+              <label>Resposta Oficial da Concessionária *</label>
+              <textarea id="kAnswer" rows="4" placeholder="Ex: Sim! Avaliamos sua moto usada e você pode usar 100% do valor como entrada no seu seminovo." required></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Palavras-Chave de Ativação (separadas por vírgula)</label>
+              <input type="text" id="kKeywords" placeholder="Ex: moto, moto na troca, aceita moto, entrada">
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline" onclick="closeKnowledgeModal()">Cancelar</button>
+              <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-check"></i> Salvar na Base
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Importação em Lote de Base de Conhecimento (RAG) -->
+  <div class="modal" id="bulkKnowledgeModal">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-file-import"></i> Treinar IA em Lote (Importar Perguntas & Respostas)</h3>
+          <button class="modal-close" onclick="closeBulkKnowledgeModal()">&times;</button>
+        </div>
+        <div style="padding: 24px;">
+          <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 12px;">
+            Cole abaixo uma lista de perguntas e respostas oficiais da loja separadas por <strong>" | "</strong> (uma por linha). A IA aprenderá todas instantaneamente.
+          </p>
+          <div class="csv-dropzone">
+            <textarea id="bulkKnowledgeInput" rows="7" placeholder="Pergunta do cliente | Resposta oficial da loja | Categoria&#10;Aceita carta de crédito de consórcio? | Sim, aceitamos cartas de consórcio contempladas de todos os bancos. | financiamento&#10;Os carros têm laudo cautelar? | Sim! 100% do nosso estoque possui perícia cautelar aprovada com procedência garantida. | garantia"></textarea>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+            <button class="btn btn-outline" onclick="closeBulkKnowledgeModal()">Cancelar</button>
+            <button class="btn btn-primary" onclick="submitBulkKnowledge()">
+              <i class="fa-solid fa-brain"></i> Treinar e Salvar Base
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
