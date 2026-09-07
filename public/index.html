@@ -103,6 +103,9 @@
           <button class="btn btn-primary" onclick="openNewVehicleModal()">
             <i class="fa-solid fa-plus"></i> Cadastrar Veículo
           </button>
+          <button class="btn btn-outline btn-icon" id="logoutBtn" onclick="handleLogout()" title="Sair do Painel" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.35);">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </button>
         </div>
       </header>
 
@@ -977,6 +980,52 @@
               <i class="fa-solid fa-brain"></i> Treinar e Salvar Base
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TELA DE LOGIN PROFISSIONAL (ACESSO SEGURO) -->
+  <div class="login-overlay" id="loginScreenOverlay" style="display: none;">
+    <div class="login-container">
+      <div class="login-card">
+        <div class="login-header">
+          <div class="login-brand">
+            <i class="fa-solid fa-car-tunnel brand-icon"></i>
+            <span class="brand-title">Auto<span class="brand-highlight">Lead</span> <span class="brand-ai">AI</span></span>
+          </div>
+          <p class="login-subtitle">Acesso Seguro ao Cockpit da Concessionária</p>
+        </div>
+
+        <div class="login-alert" id="loginAlert" style="display: none;"></div>
+
+        <form id="loginForm" onsubmit="handleLoginSubmit(event)">
+          <div class="form-group">
+            <label for="loginEmail">E-mail ou Usuário</label>
+            <div class="input-with-icon">
+              <i class="fa-solid fa-envelope"></i>
+              <input type="text" id="loginEmail" placeholder="admin@autolead.com" autocomplete="username" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="loginPassword">Senha de Acesso</label>
+            <div class="input-with-icon">
+              <i class="fa-solid fa-lock"></i>
+              <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" required>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block btn-login" id="btnLoginSubmit">
+            <span id="loginBtnText"><i class="fa-solid fa-right-to-bracket"></i> Entrar no Painel</span>
+            <span id="loginBtnSpinner" style="display: none;"><i class="fa-solid fa-circle-notch fa-spin"></i> Autenticando...</span>
+          </button>
+        </form>
+
+        <div class="login-footer">
+          <span class="login-help-hint">
+            <i class="fa-solid fa-shield-halved" style="color: var(--primary);"></i> Proteção de Nível Comercial • AutoPilot Ops
+          </span>
         </div>
       </div>
     </div>

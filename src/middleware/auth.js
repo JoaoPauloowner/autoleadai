@@ -10,7 +10,8 @@ function requireApiKey(req, res, next) {
   // Rotas públicas ou webhooks de terceiros liberados da checagem de API Key de admin
   if (
     req.path.startsWith('/webhook') ||
-    req.path.startsWith('/integrations')
+    req.path.startsWith('/integrations') ||
+    req.path.startsWith('/auth')
   ) {
     return next();
   }

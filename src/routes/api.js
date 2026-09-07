@@ -8,10 +8,14 @@ const chatController = require('../controllers/chatController');
 const taskController = require('../controllers/taskController');
 const importController = require('../controllers/importController');
 const knowledgeController = require('../controllers/knowledgeController');
+const authController = require('../controllers/authController');
 const auditService = require('../services/auditService');
 const config = require('../config/ai-provider');
 const settingsStore = require('../config/settings-store');
 const db = require('../config/database');
+
+// Rota de Autenticação Administrativa
+router.post('/auth/login', authController.login);
 
 // Rotas de Veículos (Estoque)
 router.get('/vehicles', vehicleController.listVehicles);

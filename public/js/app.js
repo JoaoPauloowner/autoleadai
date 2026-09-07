@@ -26,41 +26,117 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-(function setupApiAuth() {
-  const STORAGE_KEY = 'autolead_admin_api_key';
-  const originalFetch = window.fetch.bind(window);
+const AUTH_STORAGE_KEY = 'autolead_admin_api_key';
 
-  function getStoredKey() {
-    return localStorage.getItem(STORAGE_KEY) || 'autolead_pilot_secret_key_2026';
-  }
+function getStoredToken() {
+  return localStorage.getItem(AUTH_STORAGE_KEY);
+}
 
-  function promptForKey() {
-    const key = window.prompt('Digite a chave de acesso (ADMIN_API_KEY) do painel AutoLead AI:');
-    if (key && key.trim()) {
-      localStorage.setItem(STORAGE_KEY, key.trim());
-      return key.trim();
+function showLoginScreen(errorMessage = null) {
+  const overlay = document.getElementById('loginScreenOverlay');
+  const alertEl = document.getElementById('loginAlert');
+  if (alertEl) {
+    if (errorMessage) {
+      alertEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(errorMessage)}`;
+      alertEl.style.display = 'flex';
+    } else {
+      alertEl.style.display = 'none';
     }
-    return '';
+  }
+  if (overlay) overlay.style.display = 'flex';
+  const emailInput = document.getElementById('loginEmail');
+  if (emailInput && !emailInput.value) {
+    emailInput.value = 'admin@autolead.com';
+  }
+  const passInput = document.getElementById('loginPassword');
+  if (passInput) passInput.focus();
+}
+
+function hideLoginScreen() {
+  const overlay = document.getElementById('loginScreenOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function handleLoginSubmit(e) {
+  if (e) e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value.trim();
+  const btn = document.getElementById('btnLoginSubmit');
+  const btnText = document.getElementById('loginBtnText');
+  const btnSpinner = document.getElementById('loginBtnSpinner');
+  const alertEl = document.getElementById('loginAlert');
+
+  if (!email || !password) {
+    if (alertEl) {
+      alertEl.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Preencha o e-mail e a senha.';
+      alertEl.style.display = 'flex';
+    }
+    return;
   }
 
-  let apiKey = getStoredKey();
+  btn.disabled = true;
+  if (btnText) btnText.style.display = 'none';
+  if (btnSpinner) btnSpinner.style.display = 'inline-flex';
+  if (alertEl) alertEl.style.display = 'none';
+
+  try {
+    const res = await window.originalFetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    const json = await res.json();
+
+    if (json.success && json.token) {
+      localStorage.setItem(AUTH_STORAGE_KEY, json.token);
+      hideLoginScreen();
+      loadSettings();
+      loadDashboardData();
+      loadLiveConversations();
+      loadKnowledgeList();
+      checkWhatsAppStatus();
+    } else {
+      if (alertEl) {
+        alertEl.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ${escapeHtml(json.error || 'Credenciais inválidas.')}`;
+        alertEl.style.display = 'flex';
+      }
+    }
+  } catch (err) {
+    if (alertEl) {
+      alertEl.innerHTML = '<i class="fa-solid fa-wifi"></i> Erro de conexão com o servidor.';
+      alertEl.style.display = 'flex';
+    }
+  } finally {
+    btn.disabled = false;
+    if (btnText) btnText.style.display = 'inline-flex';
+    if (btnSpinner) btnSpinner.style.display = 'none';
+  }
+}
+
+function handleLogout() {
+  if (confirm('Deseja realmente encerrar a sessão no painel da concessionária?')) {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    showLoginScreen();
+  }
+}
+
+(function setupApiAuth() {
+  window.originalFetch = window.fetch.bind(window);
 
   window.fetch = async function (url, options = {}) {
-    const isApiCall = typeof url === 'string' && url.startsWith('/api') && !url.startsWith('/api/webhook') && !url.startsWith('/api/integrations');
+    const isApiCall = typeof url === 'string' && url.startsWith('/api') && !url.startsWith('/api/webhook') && !url.startsWith('/api/integrations') && !url.startsWith('/api/auth');
 
-    if (isApiCall && apiKey) {
-      options = { ...options, headers: { ...(options.headers || {}), 'x-api-key': apiKey } };
+    const token = getStoredToken();
+    if (isApiCall && token) {
+      options = { ...options, headers: { ...(options.headers || {}), 'x-api-key': token } };
     }
 
-    const response = await originalFetch(url, options);
+    const response = await window.originalFetch(url, options);
 
     if (isApiCall && response.status === 401) {
-      localStorage.removeItem(STORAGE_KEY);
-      apiKey = promptForKey();
-      if (apiKey) {
-        options = { ...options, headers: { ...(options.headers || {}), 'x-api-key': apiKey } };
-        return await originalFetch(url, options);
-      }
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      showLoginScreen('Sua sessão expirou ou a chave de acesso foi alterada. Faça login novamente.');
     }
 
     return response;
@@ -72,11 +148,16 @@ document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   initNeuralBackground();
   initNavigation();
-  loadSettings();
-  loadDashboardData();
-  loadLiveConversations();
-  loadKnowledgeList();
-  checkWhatsAppStatus();
+
+  if (!getStoredToken()) {
+    showLoginScreen();
+  } else {
+    loadSettings();
+    loadDashboardData();
+    loadLiveConversations();
+    loadKnowledgeList();
+    checkWhatsAppStatus();
+  }
 });
 
 // ==========================================

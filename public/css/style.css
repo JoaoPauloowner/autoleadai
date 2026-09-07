@@ -2686,3 +2686,163 @@ body.light-mode .btn-outline:hover {
   padding-top: 10px;
   border-top: 1px solid var(--border-color);
 }
+
+/* ==========================================================================
+   TELA DE LOGIN PROFISSIONAL (ACESSO SEGURO)
+   ========================================================================== */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(10, 12, 10, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-container {
+  width: 100%;
+  max-width: 440px;
+  animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(118, 185, 0, 0.3);
+  border-radius: var(--radius-lg);
+  padding: 36px 32px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(118, 185, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.login-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.login-brand .brand-icon {
+  font-size: 1.8rem;
+  color: var(--primary);
+  filter: drop-shadow(0 0 10px rgba(118, 185, 0, 0.45));
+}
+
+.login-brand .brand-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--text-primary);
+  font-family: 'Roboto Mono', monospace;
+}
+
+.login-brand .brand-highlight {
+  color: var(--primary);
+}
+
+.login-brand .brand-ai {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--primary-tint);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+.login-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-family: 'Roboto Mono', monospace;
+}
+
+.login-alert {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  font-size: 0.82rem;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Roboto Mono', monospace;
+}
+
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-icon i {
+  position: absolute;
+  left: 14px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  pointer-events: none;
+  transition: color var(--transition-fast);
+}
+
+.input-with-icon input {
+  padding-left: 42px !important;
+  width: 100%;
+}
+
+.input-with-icon input:focus + i,
+.input-with-icon:focus-within i {
+  color: var(--primary);
+}
+
+.btn-login {
+  width: 100%;
+  padding: 13px 20px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-top: 12px;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(118, 185, 0, 0.25);
+}
+
+.login-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.login-help-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: 'Roboto Mono', monospace;
+}
+
