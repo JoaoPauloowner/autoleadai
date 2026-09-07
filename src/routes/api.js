@@ -8,6 +8,7 @@ const chatController = require('../controllers/chatController');
 const taskController = require('../controllers/taskController');
 const importController = require('../controllers/importController');
 const config = require('../config/ai-provider');
+const settingsStore = require('../config/settings-store');
 const db = require('../config/database');
 
 // Rotas de Veículos (Estoque)
@@ -126,14 +127,14 @@ router.post('/settings', (req, res) => {
   try {
     const { provider, openaiKey, geminiKey, dealershipName, dealershipAddress, dealershipPhone } = req.body;
     
-    if (provider) config.provider = provider;
-    if (openaiKey) config.openai.apiKey = openaiKey;
-    if (geminiKey) config.gemini.apiKey = geminiKey;
-    if (dealershipName) config.dealership.name = dealershipName;
-    if (dealershipAddress) config.dealership.address = dealershipAddress;
-    if (dealershipPhone) config.dealership.phone = dealershipPhone;
+    if (provider) { config.provider = provider; settingsStore.save('ai_provider', provider); }
+    if (openaiKey) { config.openai.apiKey = openaiKey; settingsStore.save('openai_api_key', openaiKey); }
+    if (geminiKey) { config.gemini.apiKey = geminiKey; settingsStore.save('gemini_api_key', geminiKey); }
+    if (dealershipName) { config.dealership.name = dealershipName; settingsStore.save('dealership_name', dealershipName); }
+    if (dealershipAddress) { config.dealership.address = dealershipAddress; settingsStore.save('dealership_address', dealershipAddress); }
+    if (dealershipPhone) { config.dealership.phone = dealershipPhone; settingsStore.save('dealership_phone', dealershipPhone); }
 
-    res.json({ success: true, message: 'Configurações atualizadas na sessão ativa' });
+    res.json({ success: true, message: 'Configurações salvas e persistidas no banco com sucesso' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

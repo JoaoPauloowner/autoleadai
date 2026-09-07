@@ -1,4 +1,4 @@
-require('dotenv').config();
+const settingsStore = require('./settings-store');
 
 const config = {
   provider: process.env.AI_PROVIDER || 'gemini',
@@ -19,5 +19,14 @@ const config = {
     interestRate: parseFloat(process.env.AVERAGE_MONTHLY_INTEREST_RATE || '0.0149')
   }
 };
+
+// Aplica configurações persistidas do banco sobre os padrões do .env
+const persisted = settingsStore.loadAll();
+if (persisted.ai_provider) config.provider = persisted.ai_provider;
+if (persisted.openai_api_key) config.openai.apiKey = persisted.openai_api_key;
+if (persisted.gemini_api_key) config.gemini.apiKey = persisted.gemini_api_key;
+if (persisted.dealership_name) config.dealership.name = persisted.dealership_name;
+if (persisted.dealership_address) config.dealership.address = persisted.dealership_address;
+if (persisted.dealership_phone) config.dealership.phone = persisted.dealership_phone;
 
 module.exports = config;
