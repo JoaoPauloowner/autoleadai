@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { calculateLeadScore } = require('../ai/scorer');
+const auditService = require('../services/auditService');
 
 exports.importLeadsCsv = (req, res) => {
   try {
@@ -100,6 +101,19 @@ exports.importLeadsCsv = (req, res) => {
         errors.push({ line: i + 1, error: err.message, row: row.join('; ') });
       }
     }
+
+    auditService.logAudit({
+      organization_id: 'default',
+      actor: 'admin',
+      action: 'import_leads_csv',
+      entity_type: 'leads',
+      entity_id: null,
+      details: {
+        totalRows: lines.length - 1,
+        importedCount: imported,
+        errorCount: errors.length
+      }
+    });
 
     res.json({
       success: true,

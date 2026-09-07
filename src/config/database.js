@@ -29,6 +29,7 @@ function initDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS vehicles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id TEXT DEFAULT 'default',
       make TEXT NOT NULL,
       model TEXT NOT NULL,
       version TEXT NOT NULL,
@@ -49,6 +50,7 @@ function initDatabase() {
 
     CREATE TABLE IF NOT EXISTS leads (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id TEXT DEFAULT 'default',
       name TEXT NOT NULL,
       phone TEXT UNIQUE NOT NULL,
       email TEXT,
@@ -75,6 +77,7 @@ function initDatabase() {
 
     CREATE TABLE IF NOT EXISTS tasks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id TEXT DEFAULT 'default',
       lead_id INTEGER NOT NULL,
       type TEXT NOT NULL,              -- 'whatsapp', 'ligacao', 'test_drive', 'proposta'
       title TEXT NOT NULL,
@@ -88,6 +91,7 @@ function initDatabase() {
 
     CREATE TABLE IF NOT EXISTS test_drives (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id TEXT DEFAULT 'default',
       lead_id INTEGER NOT NULL,
       vehicle_id INTEGER NOT NULL,
       scheduled_at DATETIME NOT NULL,
@@ -101,6 +105,7 @@ function initDatabase() {
 
     CREATE TABLE IF NOT EXISTS chat_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id TEXT DEFAULT 'default',
       lead_id INTEGER NOT NULL,
       sender TEXT NOT NULL,           -- 'user', 'assistant', 'system'
       content TEXT NOT NULL,
@@ -118,6 +123,17 @@ function initDatabase() {
     CREATE TABLE IF NOT EXISTS processed_messages (
       message_id TEXT PRIMARY KEY,
       received_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      organization_id TEXT DEFAULT 'default',
+      actor TEXT NOT NULL,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -144,6 +160,11 @@ function initDatabase() {
   }
 
   // Garante colunas novas caso o banco já existisse
+  addColumnIfNotExists('vehicles', 'organization_id', "TEXT DEFAULT 'default'");
+  addColumnIfNotExists('leads', 'organization_id', "TEXT DEFAULT 'default'");
+  addColumnIfNotExists('tasks', 'organization_id', "TEXT DEFAULT 'default'");
+  addColumnIfNotExists('test_drives', 'organization_id', "TEXT DEFAULT 'default'");
+  addColumnIfNotExists('chat_messages', 'organization_id', "TEXT DEFAULT 'default'");
   addColumnIfNotExists('leads', 'score', 'INTEGER DEFAULT 25');
   addColumnIfNotExists('leads', 'score_breakdown', 'TEXT');
   addColumnIfNotExists('leads', 'next_action_title', 'TEXT');

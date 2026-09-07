@@ -41,5 +41,24 @@ npm start
 - **Painel Cockpit Geral & Vazamentos:** [http://localhost:3000](http://localhost:3000)
 - **CRM com Lead Score:** [http://localhost:3000/#crm](http://localhost:3000/#crm)
 - **Tarefas de Follow-up:** [http://localhost:3000/#tasks](http://localhost:3000/#tasks)
-- **Simulador Multimodal:** [http://localhost:3000/#simulator](http://localhost:3000/#simulator)
 - **Endpoint do Webhook:** `http://localhost:3000/api/webhook/whatsapp`
+
+---
+
+## 🔒 Arquitetura de Segurança do Piloto e Roadmap Fase 2
+
+### 1. Modelo de Acesso no Piloto (Fase 1 — Atual)
+- **Autenticação por Chave de API Única:** O acesso administrativo e as rotas `/api/*` são protegidos por chave de API (`ADMIN_API_KEY`) via header `x-admin-key`. Rotas de webhook são protegidas por `WEBHOOK_SECRET` com validação em tempo constante.
+- **Fail-Closed:** Ambas as variáveis são obrigatórias em produção; na ausência delas, o sistema bloqueia o tráfego com `503 Service Unavailable`, impedindo exposições acidentais na rede da loja.
+- **Preparação de Schema Multi-Tenant:** Todas as tabelas principais (`leads`, `vehicles`, `tasks`, `test_drives`, `chat_messages`) já possuem a coluna estrutural `organization_id TEXT DEFAULT 'default'`. Isso garante compatibilidade total e elimina a necessidade de migrações arriscadas no futuro.
+- **Trilha de Auditoria (`audit_log`):** Operações sensíveis são registradas automaticamente na tabela `audit_log` (alterações de configurações da loja, conexão/desconexão do WhatsApp e importações de leads via CSV).
+- **Abstração Total de IA:** Todas as interações com provedores LLM (Gemini e OpenAI) são centralizadas na camada `src/ai/`, mantendo os controllers desacoplados de SDKs de IA.
+
+### 2. Transição para a Fase 2 (Pós-Validação do Piloto)
+Após o período de testes e validação comercial diretamente na loja parceira, os seguintes avanços arquiteturais serão implementados de forma incremental:
+- **Autenticação e RBAC Completo:** Substituição da API key única por login de usuários com JWT, refresh tokens e papéis granulares (Administrador, Gerente de Vendas, Consultor de Vendas).
+- **Multi-Tenancy Real:** Ativação de isolamento lógico estrito por `organization_id` no banco de dados para atender redes de concessionárias e múltiplas lojas.
+- **Migração para PostgreSQL:** Transição assistida de SQLite para PostgreSQL gerenciado.
+- **Billing e Planos:** Módulo de faturamento recorrente e gestão de assinaturas.
+- **Meta Cloud API Oficial:** Suporte opcional à API oficial da Meta ao lado do conector nativo.
+

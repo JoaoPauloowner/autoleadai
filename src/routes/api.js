@@ -7,6 +7,7 @@ const bookingController = require('../controllers/bookingController');
 const chatController = require('../controllers/chatController');
 const taskController = require('../controllers/taskController');
 const importController = require('../controllers/importController');
+const auditService = require('../services/auditService');
 const config = require('../config/ai-provider');
 const settingsStore = require('../config/settings-store');
 const db = require('../config/database');
@@ -58,11 +59,27 @@ router.get('/whatsapp/status', (req, res) => {
 
 router.post('/whatsapp/connect', (req, res) => {
   whatsappService.startWhatsApp();
+  auditService.logAudit({
+    organization_id: 'default',
+    actor: 'admin',
+    action: 'connect_whatsapp',
+    entity_type: 'whatsapp_session',
+    entity_id: 'baileys_session',
+    details: 'Inicialização do leitor QR Code WhatsApp solicitada'
+  });
   res.json({ success: true, message: 'Inicializando leitor de QR Code...' });
 });
 
 router.post('/whatsapp/disconnect', async (req, res) => {
   const result = await whatsappService.disconnectWhatsApp();
+  auditService.logAudit({
+    organization_id: 'default',
+    actor: 'admin',
+    action: 'disconnect_whatsapp',
+    entity_type: 'whatsapp_session',
+    entity_id: 'baileys_session',
+    details: result
+  });
   res.json(result);
 });
 
@@ -134,7 +151,33 @@ router.post('/settings', (req, res) => {
     if (dealershipAddress) { config.dealership.address = dealershipAddress; settingsStore.save('dealership_address', dealershipAddress); }
     if (dealershipPhone) { config.dealership.phone = dealershipPhone; settingsStore.save('dealership_phone', dealershipPhone); }
 
+    auditService.logAudit({
+      organization_id: 'default',
+      actor: 'admin',
+      action: 'update_settings',
+      entity_type: 'settings',
+      entity_id: 'store_settings',
+      details: {
+        provider,
+        dealershipName,
+        dealershipAddress,
+        dealershipPhone,
+        changedKeys: Object.keys(req.body).filter(k => !k.toLowerCase().includes('key'))
+      }
+    });
+
     res.json({ success: true, message: 'Configurações salvas e persistidas no banco com sucesso' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Rota para consulta de Logs de Auditoria
+router.get('/audit-logs', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit || '50', 10);
+    const logs = auditService.getAuditLogs(limit);
+    res.json({ success: true, data: logs });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
