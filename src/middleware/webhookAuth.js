@@ -18,9 +18,13 @@ function requireWebhookSecret(req, res, next) {
 
   const configuredSecret = process.env.WEBHOOK_SECRET;
 
-  // Se não houver segredo configurado no .env, permite em ambiente de desenvolvimento local
+  // Fail-closed: se WEBHOOK_SECRET não estiver configurado no .env, bloqueia com 503
   if (!configuredSecret || !configuredSecret.trim()) {
-    return next();
+    console.error('🔒 WEBHOOK_SECRET não configurado no .env — bloqueando o webhook por segurança.');
+    return res.status(503).json({
+      success: false,
+      error: 'Webhook não configurado corretamente: defina WEBHOOK_SECRET no arquivo .env.'
+    });
   }
 
   const providedSecret = req.query.token || req.header('x-webhook-secret');

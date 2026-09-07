@@ -17,9 +17,13 @@ function requireApiKey(req, res, next) {
 
   const configuredKey = process.env.ADMIN_API_KEY;
 
-  // Se nenhuma chave estiver definida no .env, opera em modo desenvolvimento aberto com aviso
+  // Fail-closed: se ADMIN_API_KEY não estiver configurada no .env, bloqueia com 503
   if (!configuredKey || !configuredKey.trim()) {
-    return next();
+    console.error('🔒 ADMIN_API_KEY não configurada no .env — bloqueando acesso à API por segurança.');
+    return res.status(503).json({
+      success: false,
+      error: 'Servidor não configurado corretamente: defina ADMIN_API_KEY no arquivo .env antes de usar o painel.'
+    });
   }
 
   const providedKey = req.header('x-api-key');
