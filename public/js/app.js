@@ -53,6 +53,14 @@ function showLoginScreen(errorMessage = null) {
   if (passInput) passInput.focus();
 }
 
+function quickFillLogin(email, password) {
+  const emailInput = document.getElementById('loginEmail');
+  const passInput = document.getElementById('loginPassword');
+  if (emailInput) emailInput.value = email;
+  if (passInput) passInput.value = password;
+  handleLoginSubmit();
+}
+
 function hideLoginScreen() {
   const overlay = document.getElementById('loginScreenOverlay');
   if (overlay) overlay.style.display = 'none';
@@ -147,14 +155,25 @@ async function handleLoginSubmit(e) {
 }
 
 async function handleLogout() {
-  if (confirm('Deseja realmente encerrar a sessão no painel da concessionária?')) {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } catch (e) {}
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    currentUser = null;
-    showLoginScreen();
+  try {
+    const token = getStoredToken();
+    if (token) {
+      await window.originalFetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Erro ao chamar logout:', e);
   }
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+  sessionStorage.clear();
+  currentUser = null;
+  // Recarrega completamente para zerar estados em memória e abrir a tela de login instantaneamente
+  window.location.href = '/';
 }
 
 (function setupApiAuth() {
