@@ -49,6 +49,7 @@ router.post('/imports/leads', importController.importLeadsCsv);
 
 // Rotas de Test-Drives (Agendamentos)
 router.get('/test-drives', bookingController.listTestDrives);
+router.post('/test-drives', bookingController.createTestDrive);
 router.patch('/test-drives/:id/status', bookingController.updateTestDriveStatus);
 
 // Rotas do Atendimento ao Vivo (Live Inbox WhatsApp) e Chat

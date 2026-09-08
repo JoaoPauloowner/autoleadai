@@ -182,7 +182,143 @@ async function run() {
   }
   console.log('Lucas updating Marcos lead Status (Expected 403):', lucasUpdateAttempt.status, 'Error:', lucasUpdateAttempt.data.error);
 
-  console.log('\n🎉 ALL 10 TESTS PASSED SUCCESSFULLY AND VERIFIED!');
+  console.log('\n--- TEST 11: Task Scoping (Lucas cannot see, complete, or delete Marcos\'s task) ---');
+  // 1. Marcos cria uma tarefa para o seu lead
+  const createTaskRes = await request('/api/tasks', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${marcosToken}` }
+  }, {
+    lead_id: unauthorizedLead.id,
+    type: 'whatsapp',
+    title: 'Ligar para confirmar proposta Marcos ' + Date.now(),
+    due_at: new Date(Date.now() + 86400000).toISOString(),
+    notes: 'Anotações confidenciais do vendedor Marcos'
+  });
+
+  if (createTaskRes.status !== 201 || !createTaskRes.data.id) {
+    throw new Error('Falha no Teste 11: Marcos não conseguiu criar a tarefa necessária para o teste');
+  }
+  const marcosTaskId = createTaskRes.data.id;
+  console.log(`Tarefa criada com sucesso para Marcos: #${marcosTaskId}`);
+
+  // 2. Lucas lista tarefas: NÃO deve conter a tarefa de Marcos
+  const lucasTasks = await request('/api/tasks', {
+    headers: { 'Authorization': `Bearer ${lucasToken}` }
+  });
+  if (lucasTasks.status !== 200) {
+    throw new Error(`Falha no Teste 11: Lucas recebeu erro ao listar tarefas: ${lucasTasks.status}`);
+  }
+  const taskFoundInLucas = (lucasTasks.data.data || []).find(t => t.id === marcosTaskId);
+  if (taskFoundInLucas) {
+    throw new Error('Falha no Teste 11: A tarefa de Marcos foi indevidamente listada para o vendedor Lucas!');
+  }
+  console.log('Is Marcos task hidden from Lucas tasks list? true');
+
+  // 3. Lucas tenta completar a tarefa de Marcos: DEVE ser 403
+  const lucasCompleteTask = await request(`/api/tasks/${marcosTaskId}/complete`, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bearer ${lucasToken}` }
+  });
+  if (lucasCompleteTask.status !== 403) {
+    throw new Error(`Falha no Teste 11: Esperado 403 ao Lucas tentar completar tarefa de Marcos, recebeu ${lucasCompleteTask.status}`);
+  }
+  console.log('Lucas completing Marcos task Status (Expected 403):', lucasCompleteTask.status, 'Error:', lucasCompleteTask.data.error);
+
+  // 4. Lucas tenta apagar a tarefa de Marcos: DEVE ser 403
+  const lucasDeleteTask = await request(`/api/tasks/${marcosTaskId}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${lucasToken}` }
+  });
+  if (lucasDeleteTask.status !== 403) {
+    throw new Error(`Falha no Teste 11: Esperado 403 ao Lucas tentar apagar tarefa de Marcos, recebeu ${lucasDeleteTask.status}`);
+  }
+  console.log('Lucas deleting Marcos task Status (Expected 403):', lucasDeleteTask.status, 'Error:', lucasDeleteTask.data.error);
+
+  // 5. Owner lista tarefas: DEVE enxergar a tarefa de Marcos
+  const ownerTasks = await request('/api/tasks', {
+    headers: { 'Authorization': `Bearer ${ownerToken}` }
+  });
+  const taskFoundInOwner = (ownerTasks.data.data || []).find(t => t.id === marcosTaskId);
+  if (!taskFoundInOwner) {
+    throw new Error('Falha no Teste 11: A tarefa de Marcos não apareceu na listagem do Owner!');
+  }
+  console.log('Is Marcos task visible to Owner? true');
+
+  console.log('\n--- TEST 12: Test-Drive Scoping (Lucas cannot see or update Marcos\'s test-drive) ---');
+  // 1. Garante que exista um veículo para associar ao test-drive
+  let vehicleId = 1;
+  const vehiclesRes = await request('/api/vehicles', {
+    headers: { 'Authorization': `Bearer ${ownerToken}` }
+  });
+  if (vehiclesRes.data.data && vehiclesRes.data.data.length > 0) {
+    vehicleId = vehiclesRes.data.data[0].id;
+  } else {
+    const newVehicle = await request('/api/vehicles', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${ownerToken}` }
+    }, {
+      make: 'Toyota',
+      model: 'Corolla Cross',
+      version: 'XRX Hybrid',
+      year_fab: 2024,
+      year_model: 2024,
+      price: 189000
+    });
+    vehicleId = newVehicle.data.id || 1;
+  }
+
+  // 2. Marcos agenda um test-drive para o seu lead
+  const createTdRes = await request('/api/test-drives', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${marcosToken}` }
+  }, {
+    lead_id: unauthorizedLead.id,
+    vehicle_id: vehicleId,
+    scheduled_at: new Date(Date.now() + 86400000).toISOString(),
+    notes: 'Cliente quer testar o sistema híbrido'
+  });
+
+  if (createTdRes.status !== 201 || !createTdRes.data.id) {
+    throw new Error('Falha no Teste 12: Marcos não conseguiu agendar o test-drive necessário para o teste');
+  }
+  const marcosTdId = createTdRes.data.id;
+  console.log(`Test-Drive agendado com sucesso para Marcos: #${marcosTdId}`);
+
+  // 3. Lucas lista test-drives: NÃO deve conter o test-drive de Marcos
+  const lucasTds = await request('/api/test-drives', {
+    headers: { 'Authorization': `Bearer ${lucasToken}` }
+  });
+  if (lucasTds.status !== 200) {
+    throw new Error(`Falha no Teste 12: Lucas recebeu erro ao listar test-drives: ${lucasTds.status}`);
+  }
+  const tdFoundInLucas = (lucasTds.data.data || []).find(td => td.id === marcosTdId);
+  if (tdFoundInLucas) {
+    throw new Error('Falha no Teste 12: O test-drive de Marcos foi indevidamente listado para o vendedor Lucas!');
+  }
+  console.log('Is Marcos test-drive hidden from Lucas test-drive list? true');
+
+  // 4. Lucas tenta atualizar status do test-drive de Marcos: DEVE ser 403
+  const lucasUpdateTd = await request(`/api/test-drives/${marcosTdId}/status`, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bearer ${lucasToken}` }
+  }, { status: 'realizado', notes: 'Tentativa indevida de Lucas' });
+
+  if (lucasUpdateTd.status !== 403) {
+    throw new Error(`Falha no Teste 12: Esperado 403 ao Lucas tentar atualizar test-drive de Marcos, recebeu ${lucasUpdateTd.status}`);
+  }
+  console.log('Lucas updating Marcos test-drive Status (Expected 403):', lucasUpdateTd.status, 'Error:', lucasUpdateTd.data.error);
+
+  // 5. Owner lista test-drives: DEVE enxergar o test-drive de Marcos
+  const ownerTds = await request('/api/test-drives', {
+    headers: { 'Authorization': `Bearer ${ownerToken}` }
+  });
+  const tdFoundInOwner = (ownerTds.data.data || []).find(td => td.id === marcosTdId);
+  if (!tdFoundInOwner) {
+    throw new Error('Falha no Teste 12: O test-drive de Marcos não apareceu na listagem do Owner!');
+  }
+  console.log('Is Marcos test-drive visible to Owner? true');
+
+  console.log('\n🎉 ALL 12 TESTS PASSED SUCCESSFULLY AND VERIFIED WITH REAL DATA!');
 }
 
 run().catch(err => {

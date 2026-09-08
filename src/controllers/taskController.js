@@ -4,7 +4,7 @@ exports.listTasks = (req, res) => {
   try {
     const { status } = req.query;
     let sql = `
-      SELECT t.*, l.name as lead_name, l.phone as lead_phone, l.status as lead_status,
+      SELECT t.*, l.name as lead_name, l.phone as lead_phone, l.status as lead_status, l.assigned_to as lead_assigned_to,
              v.make as vehicle_make, v.model as vehicle_model
       FROM tasks t
       JOIN leads l ON t.lead_id = l.id
@@ -12,6 +12,12 @@ exports.listTasks = (req, res) => {
       WHERE 1=1
     `;
     const params = [];
+
+    // Escopo rígido por vendedor: visualiza apenas tarefas dos leads sob sua responsabilidade
+    if (req.user && req.user.role === 'salesperson') {
+      sql += ' AND l.assigned_to = ?';
+      params.push(req.user.id);
+    }
 
     if (status) {
       sql += ' AND t.status = ?';
@@ -43,6 +49,17 @@ exports.createTask = (req, res) => {
       return res.status(400).json({ success: false, error: 'Lead, título e prazo são obrigatórios' });
     }
 
+    // Escopo por vendedor ao criar tarefa
+    if (req.user && req.user.role === 'salesperson') {
+      const lead = db.prepare('SELECT assigned_to FROM leads WHERE id = ?').get(lead_id);
+      if (!lead) {
+        return res.status(404).json({ success: false, error: 'Lead não encontrado' });
+      }
+      if (lead.assigned_to !== req.user.id) {
+        return res.status(403).json({ success: false, error: 'Acesso negado. Você só pode criar tarefas para seus próprios leads.' });
+      }
+    }
+
     const stmt = db.prepare(`
       INSERT INTO tasks (lead_id, type, title, due_at, notes, status)
       VALUES (?, ?, ?, ?, ?, 'pendente')
@@ -67,6 +84,22 @@ exports.createTask = (req, res) => {
 exports.completeTask = (req, res) => {
   try {
     const { id } = req.params;
+
+    const task = db.prepare(`
+      SELECT t.id, t.lead_id, l.assigned_to 
+      FROM tasks t
+      JOIN leads l ON t.lead_id = l.id
+      WHERE t.id = ?
+    `).get(id);
+
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Tarefa não encontrada' });
+    }
+
+    if (req.user && req.user.role === 'salesperson' && task.assigned_to !== req.user.id) {
+      return res.status(403).json({ success: false, error: 'Acesso negado. Esta tarefa pertence ao lead de outro vendedor.' });
+    }
+
     db.prepare(`
       UPDATE tasks 
       SET status = 'concluida', completed_at = CURRENT_TIMESTAMP 
@@ -82,6 +115,22 @@ exports.completeTask = (req, res) => {
 exports.deleteTask = (req, res) => {
   try {
     const { id } = req.params;
+
+    const task = db.prepare(`
+      SELECT t.id, t.lead_id, l.assigned_to 
+      FROM tasks t
+      JOIN leads l ON t.lead_id = l.id
+      WHERE t.id = ?
+    `).get(id);
+
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Tarefa não encontrada' });
+    }
+
+    if (req.user && req.user.role === 'salesperson' && task.assigned_to !== req.user.id) {
+      return res.status(403).json({ success: false, error: 'Acesso negado. Esta tarefa pertence ao lead de outro vendedor.' });
+    }
+
     db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
     res.json({ success: true, message: 'Tarefa removida com sucesso' });
   } catch (error) {
