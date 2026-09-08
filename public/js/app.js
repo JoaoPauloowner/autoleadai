@@ -1475,11 +1475,32 @@ async function loadVehicles() {
     const json = await res.json();
     if (json.success) {
       vehiclesData = json.data;
+      setupVehicleSearchListeners();
       renderVehiclesGrid(vehiclesData);
     }
   } catch (err) {
     console.error(err);
   }
+}
+
+let vehiclePendingDeletionId = null;
+
+function filterVehicles() {
+  const query = (document.getElementById('vehicleSearchInput')?.value || '').toLowerCase().trim();
+  const bodyType = document.getElementById('bodyTypeFilter')?.value || '';
+  const status = document.getElementById('statusFilter')?.value || '';
+
+  const filtered = vehiclesData.filter(v => {
+    if (bodyType && v.body_type !== bodyType) return false;
+    if (status && v.status !== status) return false;
+    if (query) {
+      const matchText = `${v.make || ''} ${v.model || ''} ${v.version || ''} ${v.year_model || ''}`.toLowerCase();
+      if (!matchText.includes(query)) return false;
+    }
+    return true;
+  });
+
+  renderVehiclesGrid(filtered);
 }
 
 function renderVehiclesGrid(vehicles) {
@@ -1490,37 +1511,63 @@ function renderVehiclesGrid(vehicles) {
     container.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; background: var(--bg-card); border-radius: var(--radius-lg); border: 1px dashed var(--border-color);">
         <i class="fa-solid fa-car-side" style="font-size: 3rem; color: var(--text-muted); margin-bottom: 16px; display: block;"></i>
-        <h3 style="color: #fff; margin-bottom: 8px;">Estoque do Showroom Zerado</h3>
+        <h3 style="color: #fff; margin-bottom: 8px;">Nenhum Veículo Encontrado</h3>
         <p style="color: var(--text-secondary); max-width: 440px; margin: 0 auto 20px; font-size: 0.9rem;">
-          Nenhum veículo cadastrado ainda. Cadastre os veículos reais da loja ou sincronize diretamente pelo ERP da concessionária.
+          Nenhum veículo corresponde aos filtros selecionados. Limpe os filtros ou cadastre um novo veículo no showroom.
         </p>
         <button class="btn btn-primary" onclick="openNewVehicleModal()">
-          <i class="fa-solid fa-plus"></i> Cadastrar Primeiro Veículo
+          <i class="fa-solid fa-plus"></i> Cadastrar Novo Veículo
         </button>
       </div>
     `;
     return;
   }
+
   container.innerHTML = vehicles.map(v => {
     const photo = (v.images && v.images.length > 0) ? v.images[0] : 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800';
+    const statusLabels = {
+      disponivel: '🟢 Disponível',
+      reservado: '🟡 Reservado',
+      vendido: '🔴 Vendido'
+    };
+    const currentStatusLabel = statusLabels[v.status] || v.status;
+    const isVendido = v.status === 'vendido';
+
     return `
-      <div class="vehicle-card">
+      <div class="vehicle-card" style="${isVendido ? 'opacity: 0.75; filter: grayscale(20%);' : ''}">
         <div class="vehicle-image-wrapper">
           <img src="${escapeHtml(photo)}" alt="${escapeHtml(v.make)} ${escapeHtml(v.model)}">
-          <span class="vehicle-badge-status ${escapeHtml(v.status)}">${escapeHtml(v.status)}</span>
+          <span class="vehicle-badge-status ${escapeHtml(v.status)}" title="Clique no botão Status abaixo para alterar">
+            ${escapeHtml(currentStatusLabel)}
+          </span>
           <span class="vehicle-body-type">${escapeHtml(v.body_type) || 'Carro'}</span>
         </div>
         <div class="vehicle-content">
-          <h3 class="vehicle-title">${escapeHtml(v.make)} ${escapeHtml(v.model)}</h3>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+            <h3 class="vehicle-title">${escapeHtml(v.make)} ${escapeHtml(v.model)}</h3>
+          </div>
           <p class="vehicle-version">${escapeHtml(v.version) || ''}</p>
           <div class="vehicle-specs">
             <span>${v.year_fab}/${v.year_model}</span>
-            <span>${Number(v.mileage).toLocaleString('pt-BR')} km</span>
-            <span>${escapeHtml(v.fuel)}</span>
-            <span>${escapeHtml(v.transmission)}</span>
+            <span>${Number(v.mileage || 0).toLocaleString('pt-BR')} km</span>
+            <span>${escapeHtml(v.fuel || 'Flex')}</span>
+            <span>${escapeHtml(v.transmission || 'Automático')}</span>
           </div>
-          <div class="vehicle-footer">
-            <div class="vehicle-price">R$ ${Number(v.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+          <div class="vehicle-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 8px;">
+            <div class="vehicle-price" style="font-weight: 800; font-size: 1.15rem; color: var(--primary);">
+              R$ ${Number(v.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button class="btn btn-outline btn-sm" onclick="quickToggleVehicleStatus(${v.id})" title="Alterar status de venda rápido" style="padding: 4px 8px; font-size: 0.75rem;">
+                <i class="fa-solid fa-arrows-rotate"></i> Status
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="openEditVehicleModal(${v.id})" title="Editar Veículo" style="padding: 4px 8px; font-size: 0.75rem;">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="confirmDeleteVehicle(${v.id}, '${escapeHtml(v.make)} ${escapeHtml(v.model)}')" title="Excluir Veículo" style="color: var(--error); border-color: rgba(239, 68, 68, 0.4); padding: 4px 8px; font-size: 0.75rem;">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1528,38 +1575,228 @@ function renderVehiclesGrid(vehicles) {
   }).join('');
 }
 
+function setupVehicleSearchListeners() {
+  const searchInput = document.getElementById('vehicleSearchInput');
+  const bodyFilter = document.getElementById('bodyTypeFilter');
+  const statusFilter = document.getElementById('statusFilter');
+
+  if (searchInput && !searchInput._listenerAttached) {
+    searchInput._listenerAttached = true;
+    searchInput.addEventListener('input', filterVehicles);
+  }
+  if (bodyFilter && !bodyFilter._listenerAttached) {
+    bodyFilter._listenerAttached = true;
+    bodyFilter.addEventListener('change', filterVehicles);
+  }
+  if (statusFilter && !statusFilter._listenerAttached) {
+    statusFilter._listenerAttached = true;
+    statusFilter.addEventListener('change', filterVehicles);
+  }
+}
+
 function openNewVehicleModal() {
-  document.getElementById('vehicleModal').classList.add('active');
+  const form = document.getElementById('vehicleForm');
+  if (form) form.reset();
+  const editId = document.getElementById('vehicleEditId');
+  if (editId) editId.value = '';
+  const title = document.getElementById('vehicleModalTitle');
+  if (title) title.textContent = 'Cadastrar Veículo no Showroom';
+  const statusEl = document.getElementById('vStatus');
+  if (statusEl) statusEl.value = 'disponivel';
+  document.getElementById('vehicleModal')?.classList.add('active');
+}
+
+function openEditVehicleModal(vehicleId) {
+  const vehicle = vehiclesData.find(v => v.id === vehicleId);
+  if (!vehicle) return;
+
+  const title = document.getElementById('vehicleModalTitle');
+  if (title) title.textContent = `Editar Veículo: ${vehicle.make} ${vehicle.model}`;
+
+  const editId = document.getElementById('vehicleEditId');
+  if (editId) editId.value = vehicle.id;
+
+  const vMake = document.getElementById('vMake');
+  if (vMake) vMake.value = vehicle.make || '';
+
+  const vModel = document.getElementById('vModel');
+  if (vModel) vModel.value = vehicle.model || '';
+
+  const vVersion = document.getElementById('vVersion');
+  if (vVersion) vVersion.value = vehicle.version || '';
+
+  const vYearFab = document.getElementById('vYearFab');
+  if (vYearFab) vYearFab.value = vehicle.year_fab || 2022;
+
+  const vYearModel = document.getElementById('vYearModel');
+  if (vYearModel) vYearModel.value = vehicle.year_model || 2023;
+
+  const vPrice = document.getElementById('vPrice');
+  if (vPrice) vPrice.value = vehicle.price || '';
+
+  const vStatus = document.getElementById('vStatus');
+  if (vStatus) vStatus.value = vehicle.status || 'disponivel';
+
+  const vMileage = document.getElementById('vMileage');
+  if (vMileage) vMileage.value = vehicle.mileage || 0;
+
+  const vTransmission = document.getElementById('vTransmission');
+  if (vTransmission) vTransmission.value = vehicle.transmission || 'Automático';
+
+  const vFuel = document.getElementById('vFuel');
+  if (vFuel) vFuel.value = vehicle.fuel || 'Flex';
+
+  document.getElementById('vehicleModal')?.classList.add('active');
 }
 
 function closeVehicleModal() {
-  document.getElementById('vehicleModal').classList.remove('active');
+  document.getElementById('vehicleModal')?.classList.remove('active');
 }
 
 async function handleSaveVehicle(e) {
   e.preventDefault();
+  const editId = document.getElementById('vehicleEditId')?.value;
+  const isEditing = !!editId;
+
   const payload = {
-    make: document.getElementById('vMake').value,
-    model: document.getElementById('vModel').value,
-    version: document.getElementById('vVersion').value,
+    make: document.getElementById('vMake').value.trim(),
+    model: document.getElementById('vModel').value.trim(),
+    version: document.getElementById('vVersion').value.trim(),
     year_fab: parseInt(document.getElementById('vYearFab').value, 10),
     year_model: parseInt(document.getElementById('vYearModel').value, 10),
-    price: parseFloat(document.getElementById('vPrice').value)
+    price: parseFloat(document.getElementById('vPrice').value),
+    status: document.getElementById('vStatus')?.value || 'disponivel',
+    mileage: parseInt(document.getElementById('vMileage')?.value || '0', 10),
+    transmission: document.getElementById('vTransmission')?.value || 'Automático',
+    fuel: document.getElementById('vFuel')?.value || 'Flex'
   };
 
   try {
-    const res = await fetch('/api/vehicles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const url = isEditing ? `/api/vehicles/${editId}` : '/api/vehicles';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getStoredToken()
+      },
       body: JSON.stringify(payload)
     });
-    if ((await res.json()).success) {
+
+    const json = await res.json();
+    if (json.success) {
       closeVehicleModal();
       loadVehicles();
       loadDashboardData();
+    } else {
+      alert('Erro ao salvar veículo: ' + (json.error || 'Acesso negado'));
     }
   } catch (err) {
-    alert('Erro ao salvar veículo');
+    console.error('Erro ao salvar veículo:', err);
+    alert('Erro de comunicação ao salvar veículo.');
+  }
+}
+
+async function quickToggleVehicleStatus(vehicleId) {
+  const vehicle = vehiclesData.find(v => v.id === vehicleId);
+  if (!vehicle) return;
+
+  const statusCycle = {
+    disponivel: 'reservado',
+    reservado: 'vendido',
+    vendido: 'disponivel'
+  };
+
+  const nextStatus = statusCycle[vehicle.status] || 'disponivel';
+  const prevStatus = vehicle.status;
+
+  // Atualização otimista
+  vehicle.status = nextStatus;
+  filterVehicles();
+
+  try {
+    const res = await fetch(`/api/vehicles/${vehicleId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getStoredToken()
+      },
+      body: JSON.stringify({ status: nextStatus })
+    });
+
+    const json = await res.json();
+    if (!json.success) {
+      vehicle.status = prevStatus;
+      filterVehicles();
+      alert('Erro ao atualizar status: ' + (json.error || 'Acesso negado'));
+    } else {
+      loadDashboardData();
+    }
+  } catch (err) {
+    vehicle.status = prevStatus;
+    filterVehicles();
+    console.error('Erro ao alternar status do veículo:', err);
+  }
+}
+
+function confirmDeleteVehicle(vehicleId, vehicleName = 'este veículo') {
+  vehiclePendingDeletionId = vehicleId;
+  const modal = document.getElementById('deleteVehicleConfirmModal');
+  const title = document.getElementById('deleteVehicleConfirmTitle');
+  const desc = document.getElementById('deleteVehicleConfirmDesc');
+  const btn = document.getElementById('btnExecuteDeleteVehicle');
+
+  if (title) title.textContent = `Excluir "${escapeHtml(vehicleName)}"?`;
+  if (desc) desc.innerHTML = `Tem certeza que deseja remover este veículo do estoque? A inteligência artificial deixará de oferecê-lo aos compradores no WhatsApp imediatamente.`;
+
+  if (btn) {
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        await executeDeleteVehicle(vehiclePendingDeletionId);
+      } finally {
+        btn.disabled = false;
+        closeDeleteVehicleModal();
+      }
+    };
+  }
+
+  if (modal) modal.classList.add('active');
+}
+
+function closeDeleteVehicleModal() {
+  const modal = document.getElementById('deleteVehicleConfirmModal');
+  if (modal) modal.classList.remove('active');
+  vehiclePendingDeletionId = null;
+}
+
+async function executeDeleteVehicle(vehicleId) {
+  if (!vehicleId) return;
+
+  // Remoção otimista do estoque
+  vehiclesData = vehiclesData.filter(v => v.id !== vehicleId);
+  filterVehicles();
+
+  try {
+    const res = await fetch(`/api/vehicles/${vehicleId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': 'Bearer ' + getStoredToken()
+      }
+    });
+    const json = await res.json();
+    if (json.success) {
+      loadVehicles();
+      loadDashboardData();
+    } else {
+      alert('Erro ao excluir veículo: ' + (json.error || 'Acesso negado'));
+      loadVehicles();
+    }
+  } catch (err) {
+    console.error('Erro ao excluir veículo:', err);
+    alert('Erro de comunicação ao excluir veículo.');
+    loadVehicles();
   }
 }
 
@@ -1590,6 +1827,17 @@ async function loadSettings() {
 
     const phoneInput = document.getElementById('dealershipPhoneInput');
     if (phoneInput) phoneInput.value = data.dealership.phone;
+
+    // Se o WhatsApp estiver conectado com número real e o campo ainda for o default genérico, sincroniza o número conectado
+    try {
+      const waRes = await fetch('/api/whatsapp/status');
+      const waJson = await waRes.json();
+      if (waJson.success && waJson.data?.status === 'connected' && waJson.data?.phone) {
+        if (phoneInput && (!phoneInput.value || phoneInput.value === '(11) 99999-8888')) {
+          phoneInput.value = waJson.data.phone;
+        }
+      }
+    } catch (_) {}
 
     const addrInput = document.getElementById('dealershipAddressInput');
     if (addrInput) addrInput.value = data.dealership.address;

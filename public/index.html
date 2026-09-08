@@ -638,6 +638,40 @@
               <input type="number" id="vPrice" placeholder="98900" required>
             </div>
           </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Status no Pátio / Showroom *</label>
+              <select id="vStatus">
+                <option value="disponivel">🟢 Disponível no Showroom</option>
+                <option value="reservado">🟡 Reservado / Proposta em Andamento</option>
+                <option value="vendido">🔴 Vendido / Dar Baixa no Estoque</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Quilometragem (km)</label>
+              <input type="number" id="vMileage" placeholder="45000" value="0">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Câmbio</label>
+              <select id="vTransmission">
+                <option value="Automático">Automático</option>
+                <option value="Manual">Manual</option>
+                <option value="CVT">CVT</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Combustível</label>
+              <select id="vFuel">
+                <option value="Flex">Flex (Álcool/Gasolina)</option>
+                <option value="Gasolina">Gasolina</option>
+                <option value="Diesel">Diesel</option>
+                <option value="Híbrido">Híbrido</option>
+                <option value="Elétrico">Elétrico</option>
+              </select>
+            </div>
+          </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline" onclick="closeVehicleModal()">Cancelar</button>
             <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Salvar Veículo</button>
@@ -1192,6 +1226,31 @@
           <div style="display: flex; gap: 10px; justify-content: center;">
             <button type="button" class="btn btn-outline" onclick="closeDeleteLeadModal()">Cancelar</button>
             <button type="button" class="btn btn-primary" id="btnExecuteDeleteLead" style="background: var(--error); border-color: var(--error); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);">
+              <i class="fa-solid fa-trash"></i> Sim, Excluir
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  <!-- Modal: Confirmação Segura de Exclusão de Veículo -->
+  <div class="modal" id="deleteVehicleConfirmModal">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-content" style="text-align: center;">
+        <div class="modal-header">
+          <h3 style="color: var(--error);"><i class="fa-solid fa-triangle-exclamation"></i> Excluir Veículo</h3>
+          <button class="modal-close" onclick="closeDeleteVehicleModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 24px;">
+          <div style="font-size: 2.8rem; color: var(--error); margin-bottom: 12px;">
+            <i class="fa-solid fa-trash-can"></i>
+          </div>
+          <h4 id="deleteVehicleConfirmTitle" style="margin-bottom: 6px;">Excluir Veículo do Estoque?</h4>
+          <p id="deleteVehicleConfirmDesc" style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 22px; line-height: 1.5;">
+            Esta ação removerá o veículo permanentemente do catálogo do showroom e a IA deixará de oferecê-lo aos compradores.
+          </p>
+          <div style="display: flex; gap: 10px; justify-content: center;">
+            <button type="button" class="btn btn-outline" onclick="closeDeleteVehicleModal()">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="btnExecuteDeleteVehicle" style="background: var(--error); border-color: var(--error); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);">
               <i class="fa-solid fa-trash"></i> Sim, Excluir
             </button>
           </div>
