@@ -204,7 +204,7 @@ async function handleLogout() {
   window.originalFetch = window.fetch.bind(window);
 
   window.fetch = async function (url, options = {}) {
-    const isApiCall = typeof url === 'string' && url.startsWith('/api') && !url.startsWith('/api/webhook') && !url.startsWith('/api/integrations') && !url.startsWith('/api/auth');
+    const isApiCall = typeof url === 'string' && url.startsWith('/api') && !url.startsWith('/api/webhook') && !url.startsWith('/api/integrations') && url !== '/api/auth/login';
 
     const token = getStoredToken();
     if (isApiCall && token) {
