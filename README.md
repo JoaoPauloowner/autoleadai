@@ -56,14 +56,25 @@ O AutoLead AI implementa controle de acesso baseado em papéis (RBAC) com autent
 | **`manager` (Gerente Comercial)** | Gerente de vendas da concessionária. | Vê **todos** os leads, atendimentos, tarefas e test-drives de todos os vendedores. | Pode reatribuir leads entre vendedores e gerenciar vendedores na aba de Equipe (criar `salesperson`, resetar senha, ativar/desativar). Não tem acesso a configurações de infraestrutura/RAG nem pode alterar outros gerentes ou o dono. |
 | **`salesperson` (Consultor Comercial)** | Vendedor da loja. | Vê **apenas os seus próprios leads** (`assigned_to`), suas tarefas e seus test-drives agendados. | Atende leads no Atendimento ao Vivo, envia mensagens e fotos, altera status de seus leads e pode alterar sua própria senha. Não acessa configurações nem equipe. |
 
-> [!WARNING]
-> **Aviso de Segurança — Usuários Seed de Demonstração:**
-> Na primeira inicialização do banco de dados local, são criados 3 usuários iniciais com senhas aleatórias seguras salvas em `data/initial_credentials.json` apenas para demonstração e homologação local:
-> - `admin@autolead.com` (`owner`)
-> - `lucas@autolead.com` (`salesperson`)
-> - `marcos@autolead.com` (`salesperson`)
-> 
-> **Antes da entrega ou implantação em produção para a loja parceira**, cadastre a conta oficial do proprietário e desative ou remova esses usuários de demonstração através do painel de Configurações > Equipe.
+---
+
+### 2. First-Run Setup & Instalação Limpa em Produção
+Em novas instalações, o banco de dados inicia **completamente vazio de usuários**:
+- Ao abrir o sistema pela primeira vez (`http://localhost:3000`), o AutoLead detecta o banco zerado via `GET /api/auth/setup-status` e exibe a tela de **First-Run Setup**.
+- O proprietário da concessionária cria seu nome, e-mail corporativo e senha segura.
+- A rota `POST /api/auth/setup` cria o primeiro `owner` e **se auto-bloqueia permanentemente com HTTP 403**, impedindo qualquer nova execução.
+
+### 3. Ambiente de Demonstração / Testes Locais
+Se você desejar popular o sistema com dados fictícios para fazer apresentações ou rodar testes automatizados:
+```bash
+npm run seed:demo
+```
+Esse comando cria `admin@autolead.com` (`owner`), `lucas@autolead.com` (`salesperson`) e `marcos@autolead.com` (`salesperson`), gerando senhas seguras em `data/initial_credentials.json`.
+
+### 4. Health Check para Plataformas de Nuvem
+- **Endpoint:** `GET /health` (sem autenticação)
+- **Resposta:** `{ "status": "ok" }` (HTTP 200)
+- Projetado para verificação de liveness/readiness em plataformas como **Railway**, **Render**, **Fly.io**, **AWS** e **Kubernetes**.
 
 ### 2. Trilha de Auditoria (`audit_log`)
 Todas as operações sensíveis são registradas de forma auditável e transparente:

@@ -33,12 +33,23 @@ function getStoredToken() {
   return localStorage.getItem(AUTH_STORAGE_KEY);
 }
 
-function showLoginScreen(errorMessage = null) {
+function showLoginScreen(message = null, isSuccess = false) {
+  hideSetupScreen();
   const overlay = document.getElementById('loginScreenOverlay');
   const alertEl = document.getElementById('loginAlert');
   if (alertEl) {
-    if (errorMessage) {
-      alertEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(errorMessage)}`;
+    if (message) {
+      if (isSuccess) {
+        alertEl.innerHTML = `<i class="fa-solid fa-circle-check" style="color: var(--success);"></i> ${escapeHtml(message)}`;
+        alertEl.style.background = 'rgba(34, 197, 94, 0.12)';
+        alertEl.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+        alertEl.style.color = '#86efac';
+      } else {
+        alertEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(message)}`;
+        alertEl.style.background = 'rgba(239, 68, 68, 0.12)';
+        alertEl.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+        alertEl.style.color = '#fca5a5';
+      }
       alertEl.style.display = 'flex';
     } else {
       alertEl.style.display = 'none';
@@ -51,6 +62,84 @@ function showLoginScreen(errorMessage = null) {
   }
   const passInput = document.getElementById('loginPassword');
   if (passInput) passInput.focus();
+}
+
+function showSetupScreen() {
+  hideLoginScreen();
+  const overlay = document.getElementById('setupScreenOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  const nameInput = document.getElementById('setupName');
+  if (nameInput) nameInput.focus();
+}
+
+function hideSetupScreen() {
+  const overlay = document.getElementById('setupScreenOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function handleSetupSubmit(e) {
+  if (e) e.preventDefault();
+  const name = document.getElementById('setupName')?.value?.trim();
+  const email = document.getElementById('setupEmail')?.value?.trim();
+  const password = document.getElementById('setupPassword')?.value?.trim();
+  const confirmPassword = document.getElementById('setupConfirmPassword')?.value?.trim();
+
+  const alertEl = document.getElementById('setupAlert');
+  const btn = document.getElementById('btnSetupSubmit');
+  const btnText = document.getElementById('setupBtnText');
+  const btnSpinner = document.getElementById('setupBtnSpinner');
+
+  if (password !== confirmPassword) {
+    if (alertEl) {
+      alertEl.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> As senhas digitadas não coincidem.';
+      alertEl.style.display = 'flex';
+    }
+    return;
+  }
+
+  if (password.length < 8) {
+    if (alertEl) {
+      alertEl.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> A senha deve ter no mínimo 8 caracteres.';
+      alertEl.style.display = 'flex';
+    }
+    return;
+  }
+
+  btn.disabled = true;
+  if (btnText) btnText.style.display = 'none';
+  if (btnSpinner) btnSpinner.style.display = 'inline-flex';
+  if (alertEl) alertEl.style.display = 'none';
+
+  try {
+    const res = await window.originalFetch('/api/auth/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password })
+    });
+
+    const json = await res.json();
+
+    if (json.success) {
+      hideSetupScreen();
+      const loginEmailInput = document.getElementById('loginEmail');
+      if (loginEmailInput) loginEmailInput.value = email;
+      showLoginScreen('Proprietário cadastrado com sucesso! Faça login com a senha que acabou de criar.', true);
+    } else {
+      if (alertEl) {
+        alertEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(json.error || 'Erro ao realizar configuração inicial.')}`;
+        alertEl.style.display = 'flex';
+      }
+    }
+  } catch (err) {
+    if (alertEl) {
+      alertEl.innerHTML = '<i class="fa-solid fa-wifi"></i> Erro de comunicação com o servidor.';
+      alertEl.style.display = 'flex';
+    }
+  } finally {
+    btn.disabled = false;
+    if (btnText) btnText.style.display = 'inline-flex';
+    if (btnSpinner) btnSpinner.style.display = 'none';
+  }
 }
 
 function fillEmail(email) {
@@ -204,7 +293,8 @@ async function handleLogout() {
   window.originalFetch = window.fetch.bind(window);
 
   window.fetch = async function (url, options = {}) {
-    const isApiCall = typeof url === 'string' && url.startsWith('/api') && !url.startsWith('/api/webhook') && !url.startsWith('/api/integrations') && url !== '/api/auth/login';
+    const isPublicAuthCall = url === '/api/auth/login' || url === '/api/auth/setup' || url === '/api/auth/setup-status';
+    const isApiCall = typeof url === 'string' && url.startsWith('/api') && !url.startsWith('/api/webhook') && !url.startsWith('/api/integrations') && !isPublicAuthCall;
 
     const token = getStoredToken();
     if (isApiCall && token) {
@@ -229,6 +319,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   initNeuralBackground();
   initNavigation();
 
+  // 1. Verifica se o sistema precisa de Primeira Configuração (First-Run Setup)
+  try {
+    const setupRes = await window.originalFetch('/api/auth/setup-status');
+    const setupJson = await setupRes.json();
+    if (setupJson && setupJson.needsSetup) {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      showSetupScreen();
+      return;
+    }
+  } catch (err) {
+    console.warn('Erro ao verificar setup-status:', err);
+  }
+
+  // 2. Se o sistema já possui usuários, prossegue com verificação de sessão/login
   const token = getStoredToken();
   if (!token) {
     showLoginScreen();

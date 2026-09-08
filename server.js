@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require('node:path');
 
 // Inicializa o banco SQLite
-require('./src/config/database');
+const db = require('./src/config/database');
 
 const apiRoutes = require('./src/routes/api');
 const webhookRoutes = require('./src/routes/webhook');
@@ -20,6 +20,16 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Healthcheck endpoint (não exige autenticação) para monitoramento e plataformas de nuvem (Railway, Render, AWS, etc.)
+app.get('/health', (req, res) => {
+  try {
+    db.prepare('SELECT 1').get();
+    res.status(200).json({ status: 'ok' });
+  } catch (err) {
+    res.status(503).json({ status: 'error', error: 'Database unavailable' });
+  }
+});
 
 // Arquivos estáticos da interface web
 app.use(express.static(path.join(__dirname, 'public')));

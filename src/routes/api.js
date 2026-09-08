@@ -16,7 +16,9 @@ const config = require('../config/ai-provider');
 const settingsStore = require('../config/settings-store');
 const db = require('../config/database');
 
-// Rotas de Autenticação & Sessão
+// Rotas de Autenticação, Sessão & Setup Inicial
+router.get('/auth/setup-status', authController.getSetupStatus);
+router.post('/auth/setup', authController.initialSetup);
 router.post('/auth/login', authController.login);
 router.get('/auth/me', authController.me);
 router.post('/auth/logout', authController.logout);

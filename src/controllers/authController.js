@@ -127,8 +127,85 @@ function logout(req, res) {
   }
 }
 
+/**
+ * Verifica se o sistema precisa de configuração inicial (tabela users vazia)
+ * GET /api/auth/setup-status
+ */
+function getSetupStatus(req, res) {
+  try {
+    const row = db.prepare('SELECT COUNT(*) as count FROM users').get();
+    const needsSetup = !row || row.count === 0;
+    return res.json({ success: true, needsSetup });
+  } catch (err) {
+    console.error('Erro ao verificar status de setup:', err);
+    return res.status(500).json({ success: false, error: 'Erro ao consultar banco de dados' });
+  }
+}
+
+/**
+ * Cria o primeiro proprietário da concessionária (executável APENAS uma vez na instalação limpa)
+ * POST /api/auth/setup
+ */
+function initialSetup(req, res) {
+  try {
+    const { name, email, password } = req.body;
+
+    // 1. Checagem atômica e estrita no banco no momento da chamada (não confia em cache)
+    const existing = db.prepare('SELECT COUNT(*) as count FROM users').get();
+    if (existing && existing.count > 0) {
+      return res.status(403).json({
+        success: false,
+        error: 'Acesso negado. O sistema já foi configurado e possui usuários cadastrados.'
+      });
+    }
+
+    // 2. Validações de entrada
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'O nome do proprietário é obrigatório.' });
+    }
+    if (!email || !email.trim() || !email.includes('@')) {
+      return res.status(400).json({ success: false, error: 'E-mail corporativo válido é obrigatório.' });
+    }
+    if (!password || String(password).trim().length < 8) {
+      return res.status(400).json({ success: false, error: 'A senha deve ter no mínimo 8 caracteres.' });
+    }
+
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const passwordHash = bcrypt.hashSync(String(password).trim(), 10);
+
+    // 3. Insere o primeiro usuário como owner
+    const stmt = db.prepare(`
+      INSERT INTO users (name, email, password_hash, role, organization_id, is_active)
+      VALUES (?, ?, ?, 'owner', 'default', 1)
+    `);
+    const result = stmt.run(cleanName, cleanEmail, passwordHash);
+
+    // 4. Registra no auditService
+    auditService.logAudit({
+      organization_id: 'default',
+      actor: `${cleanName} (owner)`,
+      action: 'initial_setup',
+      entity_type: 'user',
+      entity_id: String(result.lastInsertRowid),
+      details: `Primeiro proprietário (${cleanEmail}) configurado com sucesso no first-run setup.`
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Proprietário cadastrado com sucesso! Você já pode realizar login no Cockpit.',
+      userId: result.lastInsertRowid
+    });
+  } catch (err) {
+    console.error('Erro no first-run setup:', err);
+    return res.status(500).json({ success: false, error: 'Erro interno ao realizar configuração inicial.' });
+  }
+}
+
 module.exports = {
   login,
   me,
-  logout
+  logout,
+  getSetupStatus,
+  initialSetup
 };

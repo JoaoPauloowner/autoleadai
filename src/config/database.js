@@ -295,68 +295,9 @@ function initDatabase() {
     console.warn('Aviso ao inicializar store_knowledge:', seedErr.message);
   }
 
-  // Sementes padrão de Usuários (RBAC) e Distribuição Inicial de Leads
-  try {
-    const crypto = require('crypto');
-    const bcrypt = require('bcryptjs');
-    const fs = require('fs');
-    const path = require('path');
+  // O banco de dados inicia sem usuários padrão para permitir o First-Run Setup (criação do primeiro Owner)
+  // Para ambiente de testes/demonstração, execute: npm run seed:demo
 
-    const existingUsers = db.prepare('SELECT COUNT(*) as count FROM users').get();
-    if (!existingUsers || existingUsers.count === 0) {
-      const insertUser = db.prepare(`
-        INSERT INTO users (name, email, password_hash, role)
-        VALUES (?, ?, ?, ?)
-      `);
-
-      // Gera senhas aleatórias seguras (crypto.randomBytes) sem valores previsíveis
-      const adminPassword = crypto.randomBytes(8).toString('hex');
-      const lucasPassword = crypto.randomBytes(8).toString('hex');
-      const marcosPassword = crypto.randomBytes(8).toString('hex');
-
-      const ownerHash = bcrypt.hashSync(adminPassword, 10);
-      const lucasHash = bcrypt.hashSync(lucasPassword, 10);
-      const marcosHash = bcrypt.hashSync(marcosPassword, 10);
-
-      insertUser.run('Carlos Diretor', 'admin@autolead.com', ownerHash, 'owner');
-      insertUser.run('Lucas Mendes', 'lucas@autolead.com', lucasHash, 'salesperson');
-      insertUser.run('Marcos Silva', 'marcos@autolead.com', marcosHash, 'salesperson');
-
-      // Salva em arquivo local protegido (gitignored) para testes e automações locais
-      const credsPath = path.join(__dirname, '..', '..', 'data', 'initial_credentials.json');
-      try {
-        fs.writeFileSync(credsPath, JSON.stringify({
-          admin: adminPassword,
-          lucas: lucasPassword,
-          marcos: marcosPassword,
-          created_at: new Date().toISOString()
-        }, null, 2));
-      } catch (e) {}
-
-      console.log('\n================================================================================');
-      console.log('🔐 [SEGURANÇA] SENHAS ALEATÓRIAS GERADAS NA CRIAÇÃO INICIAL DO BANCO');
-      console.log('⚠️  ATENÇÃO: Nenhuma senha padrão fixa foi utilizada no código-fonte.');
-      console.log('    Guarde estas credenciais e altere-as assim que realizar o primeiro login!\n');
-      console.log(`👑 Carlos Diretor (Owner):       admin@autolead.com  | Senha: ${adminPassword}`);
-      console.log(`👔 Lucas Mendes   (Salesperson): lucas@autolead.com  | Senha: ${lucasPassword}`);
-      console.log(`👔 Marcos Silva   (Salesperson): marcos@autolead.com  | Senha: ${marcosPassword}`);
-      console.log('================================================================================\n');
-    }
-
-    // Atribui leads existentes sem assigned_to aos vendedores para teste imediato
-    const lucas = db.prepare("SELECT id FROM users WHERE email = 'lucas@autolead.com'").get();
-    const marcos = db.prepare("SELECT id FROM users WHERE email = 'marcos@autolead.com'").get();
-
-    if (lucas && marcos) {
-      db.prepare(`
-        UPDATE leads 
-        SET assigned_to = CASE WHEN (id % 2 = 0) THEN ? ELSE ? END 
-        WHERE assigned_to IS NULL OR assigned_to NOT IN (SELECT id FROM users)
-      `).run(lucas.id, marcos.id);
-    }
-  } catch (userErr) {
-    console.warn('Aviso ao inicializar users:', userErr.message);
-  }
 
   // Modo de produção: Inicializa tabelas limpas sem dados fictícios
   // Para adicionar veículos, use a interface web, planilha CSV ou a rota de ERP

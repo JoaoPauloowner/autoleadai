@@ -10,7 +10,9 @@ function requireAuth(req, res, next) {
   if (
     req.path.startsWith('/webhook') ||
     req.path.startsWith('/integrations') ||
-    req.path === '/auth/login'
+    req.path === '/auth/login' ||
+    req.path === '/auth/setup-status' ||
+    req.path === '/auth/setup'
   ) {
     return next();
   }

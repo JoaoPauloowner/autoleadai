@@ -1033,6 +1033,73 @@
     </div>
   </div>
 
+  <!-- TELA DE PRIMEIRA CONFIGURAÇÃO (FIRST-RUN SETUP) -->
+  <div class="login-overlay" id="setupScreenOverlay" style="display: none;">
+    <div class="login-container" style="max-width: 480px;">
+      <div class="login-card">
+        <div class="login-header">
+          <div class="login-brand">
+            <i class="fa-solid fa-car-tunnel brand-icon"></i>
+            <span class="brand-title">Auto<span class="brand-highlight">Lead</span> <span class="brand-ai">AI</span></span>
+          </div>
+          <h3 style="color: var(--text-primary); font-size: 1.25rem; font-weight: 700; margin-top: 10px; margin-bottom: 4px;">
+            🎉 Bem-vindo ao AutoLead AI!
+          </h3>
+          <p class="login-subtitle" style="font-size: 0.85rem; line-height: 1.4;">
+            Instalação limpa detectada. Crie a conta do <strong>Proprietário da Loja (Owner)</strong> para ativar a concessionária.
+          </p>
+        </div>
+
+        <div class="login-alert" id="setupAlert" style="display: none;"></div>
+
+        <form id="setupForm" onsubmit="handleSetupSubmit(event)">
+          <div class="form-group">
+            <label for="setupName">Nome Completo do Proprietário *</label>
+            <div class="input-with-icon">
+              <i class="fa-solid fa-user"></i>
+              <input type="text" id="setupName" placeholder="Ex: Carlos Eduardo" required autocomplete="name">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="setupEmail">E-mail Corporativo *</label>
+            <div class="input-with-icon">
+              <i class="fa-solid fa-envelope"></i>
+              <input type="email" id="setupEmail" placeholder="diretoria@concessionaria.com.br" required autocomplete="email">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="setupPassword">Senha de Acesso * (Mínimo 8 caracteres)</label>
+            <div class="input-with-icon">
+              <i class="fa-solid fa-lock"></i>
+              <input type="password" id="setupPassword" placeholder="••••••••" minlength="8" required autocomplete="new-password">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="setupConfirmPassword">Confirmar Senha *</label>
+            <div class="input-with-icon">
+              <i class="fa-solid fa-lock"></i>
+              <input type="password" id="setupConfirmPassword" placeholder="••••••••" minlength="8" required autocomplete="new-password">
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block btn-login" id="btnSetupSubmit" style="margin-top: 10px;">
+            <span id="setupBtnText"><i class="fa-solid fa-shield-check"></i> Criar Conta e Ativar Concessionária</span>
+            <span id="setupBtnSpinner" style="display: none;"><i class="fa-solid fa-circle-notch fa-spin"></i> Configurando...</span>
+          </button>
+        </form>
+
+        <div class="login-footer">
+          <span class="login-help-hint">
+            <i class="fa-solid fa-lock" style="color: var(--primary);"></i> Instalação Segura • Execução Única
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- TELA DE LOGIN PROFISSIONAL (ACESSO SEGURO) -->
   <div class="login-overlay" id="loginScreenOverlay" style="display: none;">
     <div class="login-container">
