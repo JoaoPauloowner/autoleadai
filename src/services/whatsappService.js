@@ -11,6 +11,7 @@ const {
 const agent = require('../ai/agent');
 const db = require('../config/database');
 const leadRoutingService = require('../services/leadRoutingService');
+const auditService = require('../services/auditService');
 
 let sock = null;
 let connectionStatus = 'disconnected'; // 'disconnected' | 'connecting' | 'connected'
@@ -62,6 +63,18 @@ async function startWhatsApp() {
         isStarting = false;
         connectedPhone = sock.user?.id ? sock.user.id.split(':')[0] : 'Conectado';
         console.log(`✅ [WhatsApp] Conectado com sucesso ao número: ${connectedPhone}`);
+
+        // Auditoria: Conexão bem-sucedida do WhatsApp da loja
+        try {
+          auditService.logAudit({
+            organization_id: 'default',
+            actor: 'system',
+            action: 'whatsapp_connected',
+            entity_type: 'whatsapp_session',
+            entity_id: connectedPhone,
+            details: `WhatsApp da concessionária conectado com sucesso ao número ${connectedPhone}`
+          });
+        } catch (e) {}
       }
 
       if (connection === 'close') {
@@ -76,12 +89,25 @@ async function startWhatsApp() {
           setTimeout(() => startWhatsApp(), 5000);
         } else {
           connectionStatus = 'disconnected';
+          const prevPhone = connectedPhone;
           connectedPhone = null;
           currentQrCode = null;
           // Limpa sessão local se foi desconectado pelo celular
           try {
             fs.rmSync(sessionDir, { recursive: true, force: true });
             fs.mkdirSync(sessionDir, { recursive: true });
+          } catch (e) {}
+
+          // Auditoria: Desconexão remota
+          try {
+            auditService.logAudit({
+              organization_id: 'default',
+              actor: 'system',
+              action: 'whatsapp_disconnected',
+              entity_type: 'whatsapp_session',
+              entity_id: prevPhone || 'baileys_session',
+              details: 'WhatsApp desconectado pelo aplicativo do celular ou sessão encerrada'
+            });
           } catch (e) {}
         }
       }
@@ -182,8 +208,9 @@ async function startWhatsApp() {
   }
 }
 
-async function disconnectWhatsApp() {
+async function disconnectWhatsApp(actor = 'system') {
   try {
+    const prevPhone = connectedPhone;
     if (sock) {
       await sock.logout();
       sock = null;
@@ -195,6 +222,19 @@ async function disconnectWhatsApp() {
       fs.rmSync(sessionDir, { recursive: true, force: true });
       fs.mkdirSync(sessionDir, { recursive: true });
     } catch (e) {}
+
+    // Auditoria: Desconexão solicitada
+    try {
+      auditService.logAudit({
+        organization_id: 'default',
+        actor: actor,
+        action: 'whatsapp_disconnected',
+        entity_type: 'whatsapp_session',
+        entity_id: prevPhone || 'baileys_session',
+        details: 'Sessão do WhatsApp encerrada e desconectada pelo painel'
+      });
+    } catch (e) {}
+
     return { success: true, message: 'WhatsApp desconectado com sucesso' };
   } catch (err) {
     return { success: false, error: err.message };

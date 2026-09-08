@@ -89,15 +89,8 @@ router.post('/whatsapp/connect', (req, res) => {
 });
 
 router.post('/whatsapp/disconnect', async (req, res) => {
-  const result = await whatsappService.disconnectWhatsApp();
-  auditService.logAudit({
-    organization_id: 'default',
-    actor: req.user ? `${req.user.name} (${req.user.role})` : 'admin',
-    action: 'disconnect_whatsapp',
-    entity_type: 'whatsapp_session',
-    entity_id: 'baileys_session',
-    details: result
-  });
+  const actor = req.user ? `${req.user.name} (${req.user.role})` : 'admin';
+  const result = await whatsappService.disconnectWhatsApp(actor);
   res.json(result);
 });
 

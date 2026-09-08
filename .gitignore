@@ -9,6 +9,7 @@ data/autolead.db
 data/autolead.db-journal
 data/autolead.db-wal
 data/whatsapp_session/
+data/initial_credentials.json
 
 # Logs e arquivos temporários do sistema
 npm-debug.log*

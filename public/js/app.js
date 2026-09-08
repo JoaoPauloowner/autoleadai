@@ -53,12 +53,14 @@ function showLoginScreen(errorMessage = null) {
   if (passInput) passInput.focus();
 }
 
-function quickFillLogin(email, password) {
+function fillEmail(email) {
   const emailInput = document.getElementById('loginEmail');
   const passInput = document.getElementById('loginPassword');
   if (emailInput) emailInput.value = email;
-  if (passInput) passInput.value = password;
-  handleLoginSubmit();
+  if (passInput) {
+    passInput.value = '';
+    passInput.focus();
+  }
 }
 
 function hideLoginScreen() {
