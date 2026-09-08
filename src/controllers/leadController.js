@@ -250,7 +250,7 @@ exports.deleteLead = (req, res) => {
       return res.status(404).json({ success: false, error: 'Lead não encontrado' });
     }
 
-    // Vendedor só pode excluir se for dono do lead
+    // Vendedor só pode excluir se for o responsável pelo lead (Owner e Manager podem remover qualquer um)
     if (req.user && req.user.role === 'salesperson' && existing.assigned_to !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -258,7 +258,11 @@ exports.deleteLead = (req, res) => {
       });
     }
 
+    db.prepare('DELETE FROM tasks WHERE lead_id = ?').run(id);
+    db.prepare('DELETE FROM test_drives WHERE lead_id = ?').run(id);
+    db.prepare('DELETE FROM chat_messages WHERE lead_id = ?').run(id);
     db.prepare('DELETE FROM leads WHERE id = ?').run(id);
+
     res.json({ success: true, message: 'Contato removido com sucesso do funil' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

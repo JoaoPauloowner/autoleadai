@@ -211,7 +211,8 @@ exports.getLiveConversations = (req, res) => {
  */
 exports.sendHumanMessage = async (req, res) => {
   try {
-    const { leadId, message } = req.body;
+    const leadId = req.body.leadId || req.body.lead_id;
+    const message = req.body.message;
     if (!leadId) {
       return res.status(400).json({ success: false, error: 'ID do lead é obrigatório' });
     }
@@ -251,7 +252,7 @@ exports.sendHumanMessage = async (req, res) => {
     // Se o telefone for real e o WhatsApp estiver conectado, envia de verdade
     if (lead.phone && !lead.phone.startsWith('sim_')) {
       try {
-        await whatsappService.sendTextMessage(lead.phone, message.trim());
+        await whatsappService.sendTextMessage(lead.phone, message.trim(), lead.remote_jid);
         sentViaWhatsApp = true;
       } catch (waErr) {
         console.warn('Aviso ao enviar via WhatsApp:', waErr.message);

@@ -207,6 +207,7 @@ function initDatabase() {
   addColumnIfNotExists('leads', 'is_demo_data', 'INTEGER DEFAULT 0');
   addColumnIfNotExists('leads', 'ai_enabled', 'INTEGER DEFAULT 1');
   addColumnIfNotExists('leads', 'assigned_to', 'INTEGER');
+  addColumnIfNotExists('leads', 'remote_jid', 'TEXT');
   addColumnIfNotExists('chat_messages', 'copilot_status', "TEXT DEFAULT 'approved'");
 
   // Migração da tabela users para aceitar papel 'manager' caso tenha sido criada com restrição antiga

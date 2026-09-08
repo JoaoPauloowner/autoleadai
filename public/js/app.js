@@ -511,7 +511,11 @@ function renderKanban(leads) {
 
     const card = document.createElement('div');
     card.className = 'lead-card';
-    card.style.cursor = 'pointer';
+    card.style.cursor = 'grab';
+    card.draggable = true;
+    card.dataset.leadId = lead.id;
+    card.dataset.stage = stage;
+
     card.innerHTML = `
       <div class="lead-card-top">
         <span class="lead-name">${escapeHtml(lead.name) || 'Cliente'}</span>
@@ -519,8 +523,8 @@ function renderKanban(leads) {
           <span class="lead-score-pill ${scoreClass}" title="${escapeHtml(tooltipText)}">
             <i class="fa-solid ${scoreIcon}"></i> ${score} pts
           </span>
-          <button type="button" class="btn-icon" onclick="event.stopPropagation(); handleDeleteLead(${lead.id})" title="Excluir contato" style="width: 26px; height: 26px; border: none; background: rgba(239, 68, 68, 0.12); color: #ef4444; border-radius: 4px; cursor: pointer;">
-            <i class="fa-solid fa-trash" style="font-size: 0.72rem;"></i>
+          <button type="button" class="btn-icon" onclick="event.stopPropagation(); confirmDeleteLead(${lead.id}, '${escapeHtml(lead.name || 'Cliente')}')" title="Excluir contato" style="width: 28px; height: 28px; border: none; background: rgba(239, 68, 68, 0.15); color: #ef4444; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-trash" style="font-size: 0.75rem;"></i>
           </button>
         </div>
       </div>
@@ -547,7 +551,24 @@ function renderKanban(leads) {
       </div>
     `;
 
-    card.onclick = () => openLeadDetails(lead.id);
+    // Handlers de Drag & Drop para o cartão
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(lead.id));
+      card.classList.add('is-dragging');
+      card._isDragging = true;
+      setTimeout(() => { card._isDragging = false; }, 400);
+    });
+
+    card.addEventListener('dragend', () => {
+      card.classList.remove('is-dragging');
+      document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('is-drag-over'));
+    });
+
+    card.onclick = () => {
+      if (card._isDragging) return;
+      openLeadDetails(lead.id);
+    };
 
     col.appendChild(card);
   });
@@ -559,6 +580,68 @@ function renderKanban(leads) {
     if (col && counts[s] === 0) {
       col.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.76rem; padding: 24px 8px; border: 1px dashed rgba(255,255,255,0.08); border-radius: 8px; margin-top: 4px;">Nenhum cliente nesta etapa</div>';
     }
+  });
+
+  initKanbanDragAndDrop();
+}
+
+function initKanbanDragAndDrop() {
+  const board = document.getElementById('kanbanBoard');
+  if (!board || board._dndBound) return;
+  board._dndBound = true;
+
+  const cols = board.querySelectorAll('.kanban-col');
+  cols.forEach(col => {
+    col.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      col.classList.add('is-drag-over');
+    });
+
+    col.addEventListener('dragleave', (e) => {
+      if (!col.contains(e.relatedTarget)) {
+        col.classList.remove('is-drag-over');
+      }
+    });
+
+    col.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      col.classList.remove('is-drag-over');
+
+      const leadIdStr = e.dataTransfer.getData('text/plain');
+      if (!leadIdStr) return;
+      const leadId = parseInt(leadIdStr, 10);
+      if (!leadId) return;
+
+      const targetStage = col.dataset.stage;
+      const currentLead = leadsData.find(l => l.id === leadId);
+      if (!currentLead || currentLead.status === targetStage) return;
+
+      // Optimistic UI update
+      const prevStage = currentLead.status;
+      currentLead.status = targetStage;
+      renderKanban(leadsData);
+
+      try {
+        const res = await fetch(`/api/leads/${leadId}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: targetStage })
+        });
+        const json = await res.json();
+        if (!json.success) {
+          alert('Erro ao mover contato: ' + (json.error || 'Acesso negado'));
+          currentLead.status = prevStage;
+          renderKanban(leadsData);
+        } else {
+          loadDashboardData();
+        }
+      } catch (err) {
+        console.error('Erro ao mover lead:', err);
+        currentLead.status = prevStage;
+        renderKanban(leadsData);
+      }
+    });
   });
 }
 
@@ -1885,16 +1968,55 @@ async function handleUpdateLead(e) {
   }
 }
 
-async function handleDeleteCurrentLead() {
-  if (!currentDetailLeadId) return;
-  if (!confirm('Tem certeza que deseja excluir permanentemente este contato do funil?')) return;
+let leadPendingDeletionId = null;
 
-  await handleDeleteLead(currentDetailLeadId);
-  closeLeadDetailsModal();
+function confirmDeleteLead(leadId, leadName = 'este contato') {
+  leadPendingDeletionId = leadId;
+  const modal = document.getElementById('deleteLeadConfirmModal');
+  const title = document.getElementById('deleteLeadConfirmTitle');
+  const desc = document.getElementById('deleteLeadConfirmDesc');
+  const btn = document.getElementById('btnExecuteDeleteLead');
+
+  if (title) title.textContent = `Excluir "${escapeHtml(leadName)}"?`;
+  if (desc) desc.innerHTML = `Tem certeza que deseja remover este lead do funil comercial? Todo o histórico de mensagens, tarefas e agendamentos deste contato será excluído permanentemente.`;
+
+  if (btn) {
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        await executeDeleteLead(leadPendingDeletionId);
+      } finally {
+        btn.disabled = false;
+        closeDeleteLeadModal();
+      }
+    };
+  }
+
+  if (modal) modal.classList.add('active');
 }
 
-async function handleDeleteLead(leadId) {
-  if (!confirm('Deseja excluir este contato?')) return;
+function closeDeleteLeadModal() {
+  const modal = document.getElementById('deleteLeadConfirmModal');
+  if (modal) modal.classList.remove('active');
+  leadPendingDeletionId = null;
+}
+
+async function handleDeleteCurrentLead() {
+  if (!currentDetailLeadId) return;
+  const lead = leadsData.find(l => l.id === currentDetailLeadId);
+  const name = lead ? lead.name : 'este contato';
+  const idToDelete = currentDetailLeadId;
+  closeLeadDetailsModal();
+  confirmDeleteLead(idToDelete, name);
+}
+
+async function executeDeleteLead(leadId) {
+  if (!leadId) return;
+
+  // Remoção otimista do array em memória para resposta instantânea
+  leadsData = leadsData.filter(l => l.id !== leadId);
+  renderKanban(leadsData);
+
   try {
     const res = await fetch(`/api/leads/${leadId}`, { method: 'DELETE' });
     const json = await res.json();
@@ -1903,11 +2025,19 @@ async function handleDeleteLead(leadId) {
       loadDashboardData();
       loadTasks();
     } else {
-      alert('Erro: ' + json.error);
+      alert('Erro ao excluir: ' + (json.error || 'Acesso negado'));
+      loadCRM();
     }
   } catch (err) {
-    alert('Erro ao excluir contato');
+    console.error('Erro ao excluir contato:', err);
+    alert('Erro de comunicação ao excluir contato.');
+    loadCRM();
   }
+}
+
+async function handleDeleteLead(leadId) {
+  const lead = leadsData.find(l => l.id === leadId);
+  confirmDeleteLead(leadId, lead ? lead.name : 'este contato');
 }
 
 function openCurrentLeadWhatsApp() {

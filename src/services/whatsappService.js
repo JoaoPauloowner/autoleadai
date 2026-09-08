@@ -155,12 +155,16 @@ async function startWhatsApp() {
           if (!lead) {
             const assigned_to = leadRoutingService.getNextSalespersonId();
             const stmt = db.prepare(`
-              INSERT INTO leads (name, phone, channel, status, ai_enabled, assigned_to)
-              VALUES (?, ?, 'whatsapp', 'novo', 1, ?)
+              INSERT INTO leads (name, phone, remote_jid, channel, status, ai_enabled, assigned_to)
+              VALUES (?, ?, ?, 'whatsapp', 'novo', 1, ?)
             `);
-            const r = stmt.run(pushName, senderPhone, assigned_to);
+            const r = stmt.run(pushName, senderPhone, senderJid, assigned_to);
             lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(r.lastInsertRowid);
             console.log(`🎯 [Round-Robin] Novo lead ${pushName} (${senderPhone}) atribuído ao vendedor ID ${assigned_to}`);
+          } else if (!lead.remote_jid || lead.remote_jid !== senderJid) {
+            try {
+              db.prepare('UPDATE leads SET remote_jid = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(senderJid, lead.id);
+            } catch (e) {}
           }
 
           // Se o vendedor humano assumiu (ai_enabled === 0), salva a mensagem recebida e NÃO responde via IA
@@ -180,11 +184,8 @@ async function startWhatsApp() {
             continue;
           }
 
-          // Se a IA estiver ativa (ai_enabled !== 0):
-          // Sinaliza digitando... no WhatsApp para ficar humanizado
+          // Resposta automática da IA
           await sock.sendPresenceUpdate('composing', senderJid);
-
-          // Processa com o cérebro de IA
           const aiResult = await agent.processMessage({
             leadId: lead.id,
             userMessage: messageText,
@@ -252,27 +253,40 @@ function getWhatsAppStatus() {
 /**
  * Envio direto de mensagem para um número de WhatsApp real (usado pelo vendedor no painel)
  */
-async function sendTextMessage(toPhone, text) {
+async function sendTextMessage(toPhone, text, remoteJid = null) {
   if (!sock || connectionStatus !== 'connected') {
     throw new Error('WhatsApp não está conectado no momento. Conecte pelo QR Code antes de enviar.');
   }
 
-  const cleanPhone = String(toPhone).replace(/\D/g, '');
-  if (!cleanPhone || cleanPhone.length < 8) {
-    throw new Error('Número de telefone inválido para envio no WhatsApp');
-  }
+  let jid;
+  if (remoteJid && String(remoteJid).includes('@')) {
+    jid = String(remoteJid).trim();
+  } else if (String(toPhone).includes('@')) {
+    jid = String(toPhone).trim();
+  } else {
+    const rawPhone = String(toPhone).trim();
+    const cleanDigits = rawPhone.replace(/\D/g, '');
 
-  const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-  const jid = `${finalPhone}@s.whatsapp.net`;
+    // Identificadores de dispositivo WhatsApp (LID) possuem 15 ou mais dígitos
+    if (cleanDigits.length >= 15) {
+      jid = `${cleanDigits}@lid`;
+    } else {
+      if (!cleanDigits || cleanDigits.length < 8) {
+        throw new Error('Número de telefone inválido para envio no WhatsApp');
+      }
+      const finalPhone = cleanDigits.startsWith('55') ? cleanDigits : `55${cleanDigits}`;
+      jid = `${finalPhone}@s.whatsapp.net`;
+    }
+  }
 
   try {
     await sock.sendPresenceUpdate('composing', jid);
     const result = await sock.sendMessage(jid, { text: String(text).trim() });
     await sock.sendPresenceUpdate('paused', jid);
-    console.log(`📤 [WhatsApp Vendedor] Mensagem enviada para: ${finalPhone}`);
+    console.log(`📤 [WhatsApp Vendedor] Mensagem enviada para JID: ${jid}`);
     return result;
   } catch (err) {
-    console.error(`Erro ao enviar mensagem para ${finalPhone}:`, err.message);
+    console.error(`Erro ao enviar mensagem para JID ${jid}:`, err.message);
     throw err;
   }
 }

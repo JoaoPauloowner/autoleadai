@@ -1204,6 +1204,31 @@
         </form>
       </div>
     </div>
+  <!-- Modal: Confirmação Segura de Exclusão de Lead -->
+  <div class="modal" id="deleteLeadConfirmModal">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-content" style="text-align: center;">
+        <div class="modal-header">
+          <h3 style="color: var(--error);"><i class="fa-solid fa-triangle-exclamation"></i> Excluir Contato</h3>
+          <button class="modal-close" onclick="closeDeleteLeadModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 24px;">
+          <div style="font-size: 2.8rem; color: var(--error); margin-bottom: 12px;">
+            <i class="fa-solid fa-trash-can"></i>
+          </div>
+          <h4 id="deleteLeadConfirmTitle" style="margin-bottom: 6px;">Deseja excluir este contato?</h4>
+          <p id="deleteLeadConfirmDesc" style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 22px; line-height: 1.5;">
+            Esta ação removerá o lead e todo o seu histórico do funil comercial permanentemente.
+          </p>
+          <div style="display: flex; gap: 10px; justify-content: center;">
+            <button type="button" class="btn btn-outline" onclick="closeDeleteLeadModal()">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="btnExecuteDeleteLead" style="background: var(--error); border-color: var(--error); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);">
+              <i class="fa-solid fa-trash"></i> Sim, Excluir
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="/js/app.js"></script>
