@@ -1603,33 +1603,45 @@ async function loadSettings() {
 
 async function handleSaveSettings(e) {
   e.preventDefault();
-  const provider = document.querySelector('input[name="aiProvider"]:checked').value;
-  const geminiKey = document.getElementById('geminiApiKey').value.trim();
-  const openaiKey = document.getElementById('openaiApiKey').value.trim();
-  const dealershipName = document.getElementById('dealershipNameInput').value.trim();
-  const dealershipPhone = document.getElementById('dealershipPhoneInput').value.trim();
-  const dealershipAddress = document.getElementById('dealershipAddressInput').value.trim();
+  const dealershipName = document.getElementById('dealershipNameInput')?.value?.trim();
+  const dealershipPhone = document.getElementById('dealershipPhoneInput')?.value?.trim();
+  const dealershipAddress = document.getElementById('dealershipAddressInput')?.value?.trim();
+
+  const bodyData = {
+    dealershipName,
+    dealershipPhone,
+    dealershipAddress
+  };
+
+  const providerEl = document.querySelector('input[name="aiProvider"]:checked') || document.getElementById('aiProviderSelect');
+  if (providerEl?.value) bodyData.provider = providerEl.value;
+
+  const geminiKeyEl = document.getElementById('geminiApiKey');
+  if (geminiKeyEl?.value?.trim()) bodyData.geminiKey = geminiKeyEl.value.trim();
+
+  const openaiKeyEl = document.getElementById('openaiApiKey');
+  if (openaiKeyEl?.value?.trim()) bodyData.openaiKey = openaiKeyEl.value.trim();
 
   try {
     const res = await fetch('/api/settings', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        provider,
-        geminiKey: geminiKey || undefined,
-        openaiKey: openaiKey || undefined,
-        dealershipName,
-        dealershipPhone,
-        dealershipAddress
-      })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getStoredToken()
+      },
+      body: JSON.stringify(bodyData)
     });
 
-    if ((await res.json()).success) {
+    const json = await res.json();
+    if (json.success) {
       alert('Configurações salvas com sucesso!');
       loadSettings();
+    } else {
+      alert('Erro ao salvar configurações: ' + (json.error || 'Acesso negado'));
     }
   } catch (err) {
-    alert('Erro ao salvar configurações');
+    console.error('Erro ao salvar configurações:', err);
+    alert('Erro de comunicação ao salvar configurações.');
   }
 }
 

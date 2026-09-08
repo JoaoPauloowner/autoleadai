@@ -529,37 +529,6 @@
               </div>
             </div>
 
-            <details
-              style="margin-top: 20px; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; background: rgba(0,0,0,0.2);">
-              <summary
-                style="cursor: pointer; font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-screwdriver-wrench"></i> Integração Técnica Avançada (Configuração de TI /
-                Suporte)
-              </summary>
-              <div style="margin-top: 14px;">
-                <p class="settings-desc">Conecte o número de atendimento da sua loja para responder clientes reais via
-                  WhatsApp Web / API (Evolution API ou Z-API):</p>
-                <div class="webhook-info-box" style="margin-bottom: 14px;">
-                  <h4><i class="fa-solid fa-link"></i> Link do Webhook de Atendimento</h4>
-                  <code id="webhookUrlDisplay">http://localhost:3000/api/webhook/whatsapp</code>
-                </div>
-
-                <div class="form-row" style="opacity: 0.85;">
-                  <div class="form-group">
-                    <label for="geminiApiKey">Chave de IA (Opcional - Gemini ou OpenAI):</label>
-                    <input type="password" id="geminiApiKey" placeholder="Deixe em branco para usar o motor padrão...">
-                  </div>
-                  <div class="form-group">
-                    <label>Provedor de IA Ativo:</label>
-                    <select id="aiProviderSelect">
-                      <option value="gemini">Google Gemini (Recomendado)</option>
-                      <option value="openai">OpenAI (GPT-4o-mini)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </details>
-
             <button type="submit" class="btn btn-primary" style="margin-top: 14px;">
               <i class="fa-solid fa-floppy-disk"></i> Salvar Configurações da Loja
             </button>
