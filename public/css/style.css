@@ -1,42 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 /* ==========================================================================
    ESTILO DEEP LEARNING HIGH-TECH — DESIGN SYSTEM
    Tech-inspired UI/UX com AI, Deep Learning, Accelerated Computing.
-   Palette: Verde Vibrante (#76B900), Carvão (#2A2A2A), Branco (#FFFFFF),
-            Cinza Frio (#4A4A4A), Azul Elétrico (#00BFFF), Cinza Claro (#BDBDBD),
-            Preto Profundo (#1A1A1A), Verde Circuito (#6EFA5F)
-   Typography: Roboto Mono (700 Display, 400 Body, 500 Captions)
-   Shapes: Base corner radius 8px (0.5rem)
    ========================================================================== */
 
 :root {
-  /* Core High-Tech Color Palette */
-  --primary: #76B900;          /* Verde Vibrante (Dominant tech accent) */
-  --secondary: #2A2A2A;        /* Carvão (Secondary surface) */
-  --tertiary: #FFFFFF;         /* Branco Puro (High contrast elements) */
-  --neutral: #4A4A4A;          /* Cinza Frio (Borders, muted elements) */
-  --surface: #00BFFF;          /* Azul Elétrico (Secondary accent) */
-  --accent: #BDBDBD;           /* Cinza Claro (Secondary text, borders) */
-  --bg-primary: #1A1A1A;       /* Preto Profundo (Primary background) */
-  --bg-card: #242424;          /* Surface card background */
-  --bg-card-hover: #2C2C2C;
-  --bg-sidebar: #1E1E1E;       /* Sidebar dark surface */
-  --bg-input: #1C1C1C;
-  --border-color: #383838;
-  --border-hover: #76B900;
-  --success: #6EFA5F;          /* Verde Circuito (Positive indicators) */
-  --error: #EF4444;            /* Semantic Red */
-  --warning: #F59E0B;          /* Amber Warning */
+  /* Core Color Palette */
+  --primary: #84CC16;
+  --secondary: #1A1F29;
+  --tertiary: #F8FAFC;
+  --neutral: #6B7482;
+  --surface: #3B82F6;
+  --accent: #A7B0BE;
+  --bg-primary: #0B0D12;
+  --bg-card: #151922;
+  --bg-card-hover: #1A1F29;
+  --bg-sidebar: #0F1218;
+  --bg-input: #151922;
+  --border-color: #29303B;
+  --border-hover: #84CC16;
+  --success: #22C55E;
+  --error: #EF4444;
+  --warning: #F59E0B;
 
-  /* Glows & Gradients (Subtle, non-oversaturated) */
-  --primary-glow: rgba(118, 185, 0, 0.16);
-  --surface-glow: rgba(0, 191, 255, 0.16);
-  --primary-tint: rgba(118, 185, 0, 0.10);
+  /* Glows & Gradients */
+  --primary-glow: rgba(132, 204, 22, 0.12);
+  --surface-glow: rgba(59, 130, 246, 0.12);
+  --primary-tint: rgba(132, 204, 22, 0.08);
 
   /* Typography */
-  --font-family: 'Roboto Mono', monospace;
-  --text-primary: #FFFFFF;
-  --text-secondary: #BDBDBD;
-  --text-muted: #8E8E8E;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --text-primary: #F8FAFC;
+  --text-secondary: #A7B0BE;
+  --text-muted: #6B7482;
 
   /* Shapes & Base Unit (8px base) */
   --radius-sm: 4px;
