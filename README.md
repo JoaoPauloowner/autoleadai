@@ -45,20 +45,54 @@ npm start
 
 ---
 
-## 🔒 Arquitetura de Segurança do Piloto e Roadmap Fase 2
+## 🔒 Arquitetura de Segurança & Controle de Acesso (RBAC)
 
-### 1. Modelo de Acesso no Piloto (Fase 1 — Atual)
-- **Autenticação por Chave de API Única:** O acesso administrativo e as rotas `/api/*` são protegidos por chave de API (`ADMIN_API_KEY`) via header `x-admin-key`. Rotas de webhook são protegidas por `WEBHOOK_SECRET` com validação em tempo constante.
-- **Fail-Closed:** Ambas as variáveis são obrigatórias em produção; na ausência delas, o sistema bloqueia o tráfego com `503 Service Unavailable`, impedindo exposições acidentais na rede da loja.
-- **Preparação de Schema Multi-Tenant:** Todas as tabelas principais (`leads`, `vehicles`, `tasks`, `test_drives`, `chat_messages`) já possuem a coluna estrutural `organization_id TEXT DEFAULT 'default'`. Isso garante compatibilidade total e elimina a necessidade de migrações arriscadas no futuro.
-- **Trilha de Auditoria (`audit_log`):** Operações sensíveis são registradas automaticamente na tabela `audit_log` (alterações de configurações da loja, conexão/desconexão do WhatsApp e importações de leads via CSV).
-- **Abstração Total de IA:** Todas as interações com provedores LLM (Gemini e OpenAI) são centralizadas na camada `src/ai/`, mantendo os controllers desacoplados de SDKs de IA.
+### 1. Modelo de Papéis e Permissões (RBAC)
+O AutoLead AI implementa controle de acesso baseado em papéis (RBAC) com autenticação por sessão e senhas protegidas com bcrypt:
 
-### 2. Transição para a Fase 2 (Pós-Validação do Piloto)
-Após o período de testes e validação comercial diretamente na loja parceira, os seguintes avanços arquiteturais serão implementados de forma incremental:
-- **Autenticação e RBAC Completo:** Substituição da API key única por login de usuários com JWT, refresh tokens e papéis granulares (Administrador, Gerente de Vendas, Consultor de Vendas).
-- **Multi-Tenancy Real:** Ativação de isolamento lógico estrito por `organization_id` no banco de dados para atender redes de concessionárias e múltiplas lojas.
-- **Migração para PostgreSQL:** Transição assistida de SQLite para PostgreSQL gerenciado.
-- **Billing e Planos:** Módulo de faturamento recorrente e gestão de assinaturas.
-- **Meta Cloud API Oficial:** Suporte opcional à API oficial da Meta ao lado do conector nativo.
+| Papel | Descrição | Visibilidade de Dados | Permissões Especiais |
+| :--- | :--- | :--- | :--- |
+| **`owner` (Proprietário/Diretor)** | Dono ou diretor geral da concessionária. | Vê **todos** os leads, atendimentos, tarefas e test-drives de todos os vendedores. | Acesso completo a Configurações da Loja, Base de Conhecimento (RAG), Conexão WhatsApp por QR Code, Gestão de Equipe (pode criar e gerenciar `salesperson` e `manager`). Protegido contra auto-exclusão/desativação. |
+| **`manager` (Gerente Comercial)** | Gerente de vendas da concessionária. | Vê **todos** os leads, atendimentos, tarefas e test-drives de todos os vendedores. | Pode reatribuir leads entre vendedores e gerenciar vendedores na aba de Equipe (criar `salesperson`, resetar senha, ativar/desativar). Não tem acesso a configurações de infraestrutura/RAG nem pode alterar outros gerentes ou o dono. |
+| **`salesperson` (Consultor Comercial)** | Vendedor da loja. | Vê **apenas os seus próprios leads** (`assigned_to`), suas tarefas e seus test-drives agendados. | Atende leads no Atendimento ao Vivo, envia mensagens e fotos, altera status de seus leads e pode alterar sua própria senha. Não acessa configurações nem equipe. |
+
+> [!WARNING]
+> **Aviso de Segurança — Usuários Seed de Demonstração:**
+> Na primeira inicialização do banco de dados local, são criados 3 usuários iniciais com senhas aleatórias seguras salvas em `data/initial_credentials.json` apenas para demonstração e homologação local:
+> - `admin@autolead.com` (`owner`)
+> - `lucas@autolead.com` (`salesperson`)
+> - `marcos@autolead.com` (`salesperson`)
+> 
+> **Antes da entrega ou implantação em produção para a loja parceira**, cadastre a conta oficial do proprietário e desative ou remova esses usuários de demonstração através do painel de Configurações > Equipe.
+
+### 2. Trilha de Auditoria (`audit_log`)
+Todas as operações sensíveis são registradas de forma auditável e transparente:
+- Criação, alteração e redefinição de senhas de usuários (senhas em texto plano **nunca** são armazenadas em logs).
+- Troca de senhas pelo próprio usuário.
+- Conexão e desconexão do WhatsApp da loja.
+- Alteração das regras de negócio e dados da concessionária.
+- Importação em massa de contatos via planilha CSV.
+
+---
+
+## 🚀 Como Executar em Qualquer Computador
+
+### 1. Clonar o repositório:
+```bash
+git clone https://github.com/JoaoPauloowner/autoleadai.git
+cd autoleadai
+```
+
+### 2. Instalar as dependências e iniciar:
+```bash
+npm install
+npm start
+```
+*(No Windows, basta dar **dois cliques no arquivo `iniciar.bat`**!)*
+
+### 3. Acessar no Navegador:
+- **Painel Cockpit Geral & Vazamentos:** [http://localhost:3000](http://localhost:3000)
+- **CRM com Lead Score:** [http://localhost:3000/#crm](http://localhost:3000/#crm)
+- **Tarefas de Follow-up:** [http://localhost:3000/#tasks](http://localhost:3000/#tasks)
+- **Endpoint do Webhook:** `http://localhost:3000/api/webhook/whatsapp`
 

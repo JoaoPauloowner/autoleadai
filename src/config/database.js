@@ -143,7 +143,7 @@ function initDatabase() {
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('owner', 'salesperson')),
+      role TEXT NOT NULL CHECK(role IN ('owner', 'salesperson', 'manager')),
       is_active INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -208,6 +208,35 @@ function initDatabase() {
   addColumnIfNotExists('leads', 'ai_enabled', 'INTEGER DEFAULT 1');
   addColumnIfNotExists('leads', 'assigned_to', 'INTEGER');
   addColumnIfNotExists('chat_messages', 'copilot_status', "TEXT DEFAULT 'approved'");
+
+  // Migração da tabela users para aceitar papel 'manager' caso tenha sido criada com restrição antiga
+  try {
+    const usersTableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get();
+    if (usersTableSql && usersTableSql.sql && !usersTableSql.sql.includes("'manager'")) {
+      console.log('🔄 Migrando tabela users para suportar o papel manager...');
+      db.exec('PRAGMA foreign_keys = OFF;');
+      db.exec(`
+        CREATE TABLE users_temp (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          organization_id TEXT DEFAULT 'default',
+          name TEXT NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          role TEXT NOT NULL CHECK(role IN ('owner', 'salesperson', 'manager')),
+          is_active INTEGER DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO users_temp (id, organization_id, name, email, password_hash, role, is_active, created_at)
+          SELECT id, organization_id, name, email, password_hash, role, is_active, created_at FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_temp RENAME TO users;
+      `);
+      db.exec('PRAGMA foreign_keys = ON;');
+      console.log('✅ Tabela users migrada com sucesso com suporte ao perfil manager.');
+    }
+  } catch (migErr) {
+    console.warn('Aviso ao migrar tabela users:', migErr.message);
+  }
 
   // Sementes padrão da Base de Conhecimento (RAG) da concessionária
   try {

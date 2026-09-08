@@ -104,8 +104,22 @@ function requireOwner(req, res, next) {
   next();
 }
 
+/**
+ * Middleware para restringir rotas a gerentes e proprietários (Manager ou Owner)
+ */
+function requireManagerOrOwner(req, res, next) {
+  if (!req.user || (req.user.role !== 'owner' && req.user.role !== 'manager')) {
+    return res.status(403).json({
+      success: false,
+      error: 'Acesso negado. Esta funcionalidade é restrita a gerentes e diretores.'
+    });
+  }
+  next();
+}
+
 module.exports = {
   requireApiKey: requireAuth, // Mantém compatibilidade de exportação
   requireAuth,
-  requireOwner
+  requireOwner,
+  requireManagerOrOwner
 };

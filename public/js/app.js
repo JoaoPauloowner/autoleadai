@@ -80,18 +80,37 @@ function applyUserRolePermissions(user) {
     if (user.role === 'owner') {
       roleEl.textContent = 'DIRETOR / DONO';
       roleEl.className = 'stat-badge success';
+    } else if (user.role === 'manager') {
+      roleEl.textContent = 'GERENTE';
+      roleEl.className = 'stat-badge warning';
     } else {
       roleEl.textContent = 'VENDEDOR';
       roleEl.className = 'stat-badge info';
     }
   }
 
-  // Oculta telas restritas ao proprietário (Owner) para vendedores
+  // Oculta telas restritas conforme perfil
   const isOwner = user && user.role === 'owner';
-  if (navSettings) navSettings.style.display = isOwner ? 'flex' : 'none';
+  const isManagerOrOwner = user && (user.role === 'owner' || user.role === 'manager');
+
+  if (navSettings) navSettings.style.display = isManagerOrOwner ? 'flex' : 'none';
   if (navKnowledge) navKnowledge.style.display = isOwner ? 'flex' : 'none';
 
-  if (!isOwner && (currentView === 'settings' || currentView === 'knowledge')) {
+  // Configura visibilidade dentro da tela de Configurações
+  const teamCard = document.getElementById('teamSettingsCard');
+  if (teamCard) teamCard.style.display = isManagerOrOwner ? 'block' : 'none';
+
+  // Se for gerente, desabilita salvar dados cadastrais da loja (apenas owner)
+  const settingsForm = document.getElementById('settingsForm');
+  if (settingsForm) {
+    const saveBtn = settingsForm.querySelector('button[type="submit"]');
+    if (saveBtn) saveBtn.style.display = isOwner ? 'inline-flex' : 'none';
+  }
+
+  if (!isManagerOrOwner && currentView === 'settings') {
+    switchView('dashboard');
+  }
+  if (!isOwner && currentView === 'knowledge') {
     switchView('dashboard');
   }
 }
@@ -136,6 +155,9 @@ async function handleLoginSubmit(e) {
       if (json.user.role === 'owner') {
         loadSettings();
         loadKnowledgeList();
+      }
+      if (json.user.role === 'owner' || json.user.role === 'manager') {
+        loadUsersList();
       }
       checkWhatsAppStatus();
     } else {
@@ -224,6 +246,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadSettings();
         loadKnowledgeList();
       }
+      if (json.user.role === 'owner' || json.user.role === 'manager') {
+        loadUsersList();
+      }
       checkWhatsAppStatus();
     } else {
       localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -305,6 +330,10 @@ function switchView(viewName) {
     else if (viewName === 'testdrives') loadTestDrives();
     else if (viewName === 'vehicles') loadVehicles();
     else if (viewName === 'knowledge') loadKnowledgeList();
+    else if (viewName === 'settings') {
+      if (currentUser && currentUser.role === 'owner') loadSettings();
+      if (currentUser && (currentUser.role === 'owner' || currentUser.role === 'manager')) loadUsersList();
+    }
   }
 }
 
@@ -1978,5 +2007,309 @@ function initNeuralBackground() {
 
   render();
 }
+
+// ==========================================
+// 12. GESTÃO DE EQUIPE & USUÁRIOS (RBAC)
+// ==========================================
+let usersData = [];
+
+async function loadUsersList() {
+  const tbody = document.getElementById('usersTableBody');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch('/api/users');
+    const json = await res.json();
+    if (!json.success || !json.users) {
+      tbody.innerHTML = `<tr><td colspan="5" style="padding: 16px; text-align: center; color: var(--error);">${escapeHtml(json.error || 'Erro ao carregar equipe')}</td></tr>`;
+      return;
+    }
+
+    usersData = json.users;
+    if (usersData.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="padding: 16px; text-align: center; color: var(--text-secondary);">Nenhum usuário cadastrado.</td></tr>`;
+      return;
+    }
+
+    const isCallerManager = currentUser && currentUser.role === 'manager';
+    const isCallerOwner = currentUser && currentUser.role === 'owner';
+
+    tbody.innerHTML = usersData.map(u => {
+      let roleBadge = '';
+      if (u.role === 'owner') {
+        roleBadge = '<span class="stat-badge success"><i class="fa-solid fa-crown"></i> DONO</span>';
+      } else if (u.role === 'manager') {
+        roleBadge = '<span class="stat-badge warning"><i class="fa-solid fa-user-gear"></i> GERENTE</span>';
+      } else {
+        roleBadge = '<span class="stat-badge info"><i class="fa-solid fa-user-tie"></i> VENDEDOR</span>';
+      }
+
+      const statusBadge = u.is_active
+        ? '<span class="stat-badge success"><i class="fa-solid fa-circle-check"></i> Ativo</span>'
+        : '<span class="stat-badge error" style="background: rgba(239,68,68,0.15); color: #ef4444;"><i class="fa-solid fa-circle-xmark"></i> Inativo</span>';
+
+      // Gerente só gerencia vendedor; Owner gerencia todos exceto desativar o último owner
+      const canManage = isCallerOwner || (isCallerManager && u.role === 'salesperson');
+
+      let actionButtons = '';
+      if (canManage) {
+        actionButtons = `
+          <button class="btn btn-outline btn-sm" onclick="handleResetUserPassword(${u.id}, '${escapeHtml(u.name)}')" title="Redefinir Senha do Usuário" style="font-size: 0.75rem; padding: 4px 8px;">
+            <i class="fa-solid fa-key"></i> Redefinir
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="handleToggleUserStatus(${u.id}, ${u.is_active ? 1 : 0})" title="${u.is_active ? 'Desativar Usuário' : 'Reativar Usuário'}" style="font-size: 0.75rem; padding: 4px 8px; ${u.is_active ? 'color: #ef4444; border-color: rgba(239,68,68,0.4);' : 'color: #22c55e; border-color: rgba(34,197,94,0.4);'}">
+            <i class="fa-solid fa-${u.is_active ? 'ban' : 'check'}"></i> ${u.is_active ? 'Desativar' : 'Ativar'}
+          </button>
+        `;
+      } else {
+        actionButtons = `<span style="font-size: 0.75rem; color: var(--text-muted);"><i class="fa-solid fa-lock"></i> Protegido</span>`;
+      }
+
+      return `
+        <tr style="border-bottom: 1px solid var(--border-color);">
+          <td style="padding: 12px 14px; font-weight: 500; color: var(--text-primary);">${escapeHtml(u.name)}</td>
+          <td style="padding: 12px 14px; color: var(--text-secondary);">${escapeHtml(u.email)}</td>
+          <td style="padding: 12px 14px;">${roleBadge}</td>
+          <td style="padding: 12px 14px;">${statusBadge}</td>
+          <td style="padding: 12px 14px; text-align: right; white-space: nowrap; gap: 6px;">${actionButtons}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Erro ao carregar lista de usuários:', err);
+    tbody.innerHTML = `<tr><td colspan="5" style="padding: 16px; text-align: center; color: var(--error);">Erro de conexão ao carregar equipe.</td></tr>`;
+  }
+}
+
+function openNewUserModal() {
+  const roleSelect = document.getElementById('nuRole');
+  const alertEl = document.getElementById('newUserAlert');
+  if (alertEl) alertEl.style.display = 'none';
+
+  document.getElementById('nuName').value = '';
+  document.getElementById('nuEmail').value = '';
+  document.getElementById('nuPassword').value = '';
+
+  if (roleSelect) {
+    if (currentUser && currentUser.role === 'manager') {
+      roleSelect.innerHTML = `<option value="salesperson">Vendedor (Consultor Comercial)</option>`;
+    } else {
+      roleSelect.innerHTML = `
+        <option value="salesperson">Vendedor (Consultor Comercial)</option>
+        <option value="manager">Gerente Comercial</option>
+      `;
+    }
+  }
+
+  document.getElementById('newUserModal').classList.add('active');
+}
+
+function closeNewUserModal() {
+  document.getElementById('newUserModal').classList.remove('active');
+}
+
+async function handleSaveUser(e) {
+  e.preventDefault();
+  const name = document.getElementById('nuName').value.trim();
+  const email = document.getElementById('nuEmail').value.trim();
+  const role = document.getElementById('nuRole').value;
+  const password = document.getElementById('nuPassword').value.trim();
+  const alertEl = document.getElementById('newUserAlert');
+  const btn = document.getElementById('btnSaveUser');
+
+  if (alertEl) alertEl.style.display = 'none';
+  btn.disabled = true;
+
+  try {
+    const payload = { name, email, role };
+    if (password) payload.password = password;
+
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const json = await res.json();
+    if (!json.success) {
+      if (alertEl) {
+        alertEl.textContent = json.error || 'Erro ao cadastrar usuário.';
+        alertEl.style.display = 'block';
+      }
+      return;
+    }
+
+    closeNewUserModal();
+    loadUsersList();
+
+    if (json.initialPassword) {
+      showTempPasswordModal(
+        'Usuário Criado com Sucesso!',
+        `O usuário <strong>${escapeHtml(json.user.name)}</strong> (${escapeHtml(json.user.email)}) foi cadastrado. Copie a senha inicial abaixo:`,
+        json.initialPassword
+      );
+    }
+  } catch (err) {
+    if (alertEl) {
+      alertEl.textContent = 'Erro de comunicação com o servidor.';
+      alertEl.style.display = 'block';
+    }
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleResetUserPassword(userId, userName) {
+  if (!confirm(`Deseja redefinir a senha de "${userName}"? Todas as sessões dele serão invalidadas e uma nova senha será gerada.`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/users/${userId}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    const json = await res.json();
+    if (!json.success) {
+      alert(json.error || 'Erro ao redefinir senha.');
+      return;
+    }
+
+    showTempPasswordModal(
+      'Senha Redefinida com Sucesso!',
+      `A nova senha de acesso de <strong>${escapeHtml(userName)}</strong> foi gerada. Envie-a ao usuário:`,
+      json.newPassword
+    );
+  } catch (err) {
+    alert('Erro de conexão ao redefinir senha.');
+  }
+}
+
+async function handleToggleUserStatus(userId, currentActive) {
+  const newActive = currentActive ? 0 : 1;
+  const actionText = newActive ? 'reativar' : 'desativar';
+
+  if (!confirm(`Deseja realmente ${actionText} este usuário?`)) return;
+
+  try {
+    const res = await fetch(`/api/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: newActive === 1 })
+    });
+
+    const json = await res.json();
+    if (!json.success) {
+      alert(json.error || `Erro ao ${actionText} usuário.`);
+      return;
+    }
+
+    loadUsersList();
+  } catch (err) {
+    alert(`Erro ao ${actionText} usuário.`);
+  }
+}
+
+function showTempPasswordModal(title, desc, password) {
+  const modal = document.getElementById('tempPasswordModal');
+  const titleEl = document.getElementById('tempPasswordModalTitle');
+  const descEl = document.getElementById('tempPasswordModalDesc');
+  const displayEl = document.getElementById('tempPasswordDisplay');
+
+  if (titleEl) titleEl.textContent = title;
+  if (descEl) descEl.innerHTML = desc;
+  if (displayEl) displayEl.textContent = password;
+  if (modal) modal.classList.add('active');
+}
+
+function closeTempPasswordModal() {
+  const modal = document.getElementById('tempPasswordModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function copyTempPassword() {
+  const displayEl = document.getElementById('tempPasswordDisplay');
+  if (!displayEl) return;
+  const text = displayEl.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    alert('Senha copiada para a área de transferência!');
+  }).catch(() => {
+    prompt('Copie a senha manualmente:', text);
+  });
+}
+
+// ==========================================
+// 13. TROCA DE PRÓPRIA SENHA DO USUÁRIO
+// ==========================================
+function openChangePasswordModal() {
+  const alertEl = document.getElementById('changePasswordAlert');
+  if (alertEl) alertEl.style.display = 'none';
+  document.getElementById('cpCurrentPassword').value = '';
+  document.getElementById('cpNewPassword').value = '';
+  document.getElementById('cpConfirmPassword').value = '';
+  document.getElementById('changePasswordModal').classList.add('active');
+}
+
+function closeChangePasswordModal() {
+  document.getElementById('changePasswordModal').classList.remove('active');
+}
+
+async function handleChangePasswordSubmit(e) {
+  e.preventDefault();
+  const currentPassword = document.getElementById('cpCurrentPassword').value;
+  const newPassword = document.getElementById('cpNewPassword').value;
+  const confirmPassword = document.getElementById('cpConfirmPassword').value;
+  const alertEl = document.getElementById('changePasswordAlert');
+  const btn = document.getElementById('btnSubmitChangePassword');
+
+  if (newPassword !== confirmPassword) {
+    if (alertEl) {
+      alertEl.textContent = 'A nova senha e a confirmação não coincidem.';
+      alertEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (newPassword.length < 8) {
+    if (alertEl) {
+      alertEl.textContent = 'A nova senha deve ter no mínimo 8 caracteres.';
+      alertEl.style.display = 'block';
+    }
+    return;
+  }
+
+  btn.disabled = true;
+  if (alertEl) alertEl.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+
+    const json = await res.json();
+    if (!json.success) {
+      if (alertEl) {
+        alertEl.textContent = json.error || 'Erro ao alterar senha.';
+        alertEl.style.display = 'block';
+      }
+      return;
+    }
+
+    closeChangePasswordModal();
+    alert('Sua senha foi alterada com sucesso! Por segurança, faça login novamente com a nova senha.');
+    handleLogout();
+  } catch (err) {
+    if (alertEl) {
+      alertEl.textContent = 'Erro de conexão ao alterar senha.';
+      alertEl.style.display = 'block';
+    }
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 
 

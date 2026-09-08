@@ -225,8 +225,8 @@ exports.updateLead = (req, res) => {
     if (next_action_title !== undefined) { fields.push('next_action_title = ?'); params.push(next_action_title); }
     if (next_action_at !== undefined) { fields.push('next_action_at = ?'); params.push(next_action_at); }
 
-    // Somente o dono (owner) pode reatribuir o lead a outro vendedor
-    if (assigned_to !== undefined && req.user && req.user.role === 'owner') {
+    // Somente o dono (owner) ou gerente (manager) pode reatribuir o lead a outro vendedor
+    if (assigned_to !== undefined && req.user && (req.user.role === 'owner' || req.user.role === 'manager')) {
       fields.push('assigned_to = ?');
       params.push(assigned_to || null);
     }

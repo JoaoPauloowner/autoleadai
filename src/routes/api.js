@@ -9,8 +9,9 @@ const taskController = require('../controllers/taskController');
 const importController = require('../controllers/importController');
 const knowledgeController = require('../controllers/knowledgeController');
 const authController = require('../controllers/authController');
+const userController = require('../controllers/userController');
 const auditService = require('../services/auditService');
-const { requireOwner } = require('../middleware/auth');
+const { requireOwner, requireManagerOrOwner } = require('../middleware/auth');
 const config = require('../config/ai-provider');
 const settingsStore = require('../config/settings-store');
 const db = require('../config/database');
@@ -19,6 +20,13 @@ const db = require('../config/database');
 router.post('/auth/login', authController.login);
 router.get('/auth/me', authController.me);
 router.post('/auth/logout', authController.logout);
+router.post('/auth/change-password', userController.changeOwnPassword);
+
+// Rotas de Gestão de Usuários & Equipe (Manager ou Owner)
+router.get('/users', requireManagerOrOwner, userController.listUsers);
+router.post('/users', requireManagerOrOwner, userController.createUser);
+router.patch('/users/:id', requireManagerOrOwner, userController.updateUser);
+router.post('/users/:id/reset-password', requireManagerOrOwner, userController.resetPassword);
 
 // Rotas de Veículos (Estoque)
 router.get('/vehicles', vehicleController.listVehicles);

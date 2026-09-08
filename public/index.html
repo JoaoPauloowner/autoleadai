@@ -87,14 +87,17 @@
           <p id="pageSubtitle">Acompanhamento de vendas, estoque e clientes em atendimento</p>
         </div>
         <div class="topbar-actions">
-          <!-- Perfil do Usuário Logado (RBAC) com Botão Sair Integrado -->
+          <!-- Perfil do Usuário Logado (RBAC) com Botão Trocar Senha e Sair -->
           <div class="user-profile-badge" id="userProfileBadge" style="display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
             <i class="fa-solid fa-user-circle" style="color: var(--primary); font-size: 1.15rem;"></i>
             <div style="text-align: left; line-height: 1.2;">
               <strong id="loggedUserName" style="font-size: 0.78rem; display: block; color: var(--text-primary);">Carregando...</strong>
               <span id="loggedUserRole" class="stat-badge" style="font-size: 0.62rem; padding: 0 4px; text-transform: uppercase;">OWNER</span>
             </div>
-            <button class="btn btn-outline btn-sm" id="logoutBtn" onclick="handleLogout()" title="Sair do Painel / Trocar Usuário" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4); padding: 3px 8px; font-size: 0.72rem; margin-left: 6px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
+            <button class="btn btn-outline btn-sm" id="changePasswordBtn" onclick="openChangePasswordModal()" title="Trocar Minha Senha" style="color: var(--text-secondary); border-color: var(--border-color); padding: 3px 8px; font-size: 0.72rem; margin-left: 6px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
+              <i class="fa-solid fa-key"></i> Senha
+            </button>
+            <button class="btn btn-outline btn-sm" id="logoutBtn" onclick="handleLogout()" title="Sair do Painel / Trocar Usuário" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4); padding: 3px 8px; font-size: 0.72rem; margin-left: 2px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
               <i class="fa-solid fa-right-from-bracket"></i> Sair
             </button>
           </div>
@@ -562,6 +565,40 @@
               <i class="fa-solid fa-floppy-disk"></i> Salvar Configurações da Loja
             </button>
           </form>
+        </div>
+
+        <!-- Card: Gestão da Equipe da Concessionária (Owner e Manager) -->
+        <div class="settings-card" id="teamSettingsCard" style="margin-top: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h3><i class="fa-solid fa-users-gear" style="color: var(--primary);"></i> Equipe da Concessionária</h3>
+              <p class="settings-desc" style="margin-bottom: 0;">Usuários com acesso ao painel comercial, CRM e atendimento ao vivo.</p>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openNewUserModal()">
+              <i class="fa-solid fa-user-plus"></i> Adicionar Usuário
+            </button>
+          </div>
+
+          <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left;">
+              <thead>
+                <tr style="background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border-color);">
+                  <th style="padding: 10px 14px; color: var(--text-secondary);">Nome</th>
+                  <th style="padding: 10px 14px; color: var(--text-secondary);">E-mail</th>
+                  <th style="padding: 10px 14px; color: var(--text-secondary);">Papel</th>
+                  <th style="padding: 10px 14px; color: var(--text-secondary);">Status</th>
+                  <th style="padding: 10px 14px; color: var(--text-secondary); text-align: right;">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody">
+                <tr>
+                  <td colspan="5" style="padding: 24px; text-align: center; color: var(--text-secondary);">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> Carregando equipe...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </main>
@@ -1057,6 +1094,115 @@
             <i class="fa-solid fa-shield-halved" style="color: var(--primary);"></i> Proteção de Nível Comercial • AutoPilot Ops
           </span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Adicionar Novo Usuário à Equipe -->
+  <div class="modal" id="newUserModal">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-user-plus" style="color: var(--primary);"></i> Adicionar Usuário à Equipe</h3>
+          <button class="modal-close" onclick="closeNewUserModal()">&times;</button>
+        </div>
+        <form id="newUserForm" onsubmit="handleSaveUser(event)">
+          <div class="modal-body" style="padding: 20px;">
+            <div id="newUserAlert" class="alert alert-danger" style="display: none; margin-bottom: 14px; padding: 10px; border-radius: 8px; font-size: 0.85rem;"></div>
+            <div class="form-group">
+              <label>Nome Completo *</label>
+              <input type="text" id="nuName" placeholder="Ex: Roberto Carlos" required>
+            </div>
+            <div class="form-group">
+              <label>E-mail Corporativo *</label>
+              <input type="email" id="nuEmail" placeholder="roberto@autolead.com" required>
+            </div>
+            <div class="form-group">
+              <label>Perfil de Acesso (Papel) *</label>
+              <select id="nuRole" required>
+                <!-- Preenchido dinamicamente via loadUsersList / openNewUserModal -->
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Senha Inicial (Opcional)</label>
+              <input type="password" id="nuPassword" placeholder="Deixe em branco para gerar aleatória">
+              <small style="color: var(--text-secondary); font-size: 0.78rem; display: block; margin-top: 4px;">
+                Mínimo de 8 caracteres. Se deixar em branco, uma senha temporária segura de 16 dígitos será gerada.
+              </small>
+            </div>
+          </div>
+          <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px; border-top: 1px solid var(--border-color);">
+            <button type="button" class="btn btn-outline" onclick="closeNewUserModal()">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btnSaveUser">
+              <i class="fa-solid fa-check"></i> Cadastrar Usuário
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Exibir Senha Temporária Gerada -->
+  <div class="modal" id="tempPasswordModal">
+    <div class="modal-dialog" style="max-width: 460px;">
+      <div class="modal-content" style="text-align: center;">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-key" style="color: var(--primary);"></i> Credenciais de Acesso</h3>
+          <button class="modal-close" onclick="closeTempPasswordModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 24px;">
+          <div style="font-size: 2.6rem; color: var(--primary); margin-bottom: 12px;">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <h4 id="tempPasswordModalTitle" style="margin-bottom: 6px;">Senha Gerada com Sucesso</h4>
+          <p id="tempPasswordModalDesc" style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 18px;">
+            Copie a senha abaixo e envie ao usuário. Por segurança, esta senha não será exibida novamente.
+          </p>
+          <div style="display: flex; align-items: center; justify-content: center; gap: 8px; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 18px;">
+            <code id="tempPasswordDisplay" style="font-size: 1.15rem; color: var(--primary); font-weight: 700; letter-spacing: 1px; word-break: break-all;"></code>
+            <button type="button" class="btn btn-outline btn-sm" onclick="copyTempPassword()" title="Copiar Senha">
+              <i class="fa-solid fa-copy"></i> Copiar
+            </button>
+          </div>
+          <button type="button" class="btn btn-primary" onclick="closeTempPasswordModal()" style="width: 100%;">
+            Entendi, já anotei a senha
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Alterar Própria Senha -->
+  <div class="modal" id="changePasswordModal">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-lock" style="color: var(--primary);"></i> Alterar Minha Senha</h3>
+          <button class="modal-close" onclick="closeChangePasswordModal()">&times;</button>
+        </div>
+        <form id="changePasswordForm" onsubmit="handleChangePasswordSubmit(event)">
+          <div class="modal-body" style="padding: 20px;">
+            <div id="changePasswordAlert" class="alert alert-danger" style="display: none; margin-bottom: 14px; padding: 10px; border-radius: 8px; font-size: 0.85rem;"></div>
+            <div class="form-group">
+              <label>Senha Atual *</label>
+              <input type="password" id="cpCurrentPassword" required placeholder="Digite sua senha atual">
+            </div>
+            <div class="form-group">
+              <label>Nova Senha * (mínimo 8 caracteres)</label>
+              <input type="password" id="cpNewPassword" minlength="8" required placeholder="Digite a nova senha">
+            </div>
+            <div class="form-group">
+              <label>Confirmar Nova Senha *</label>
+              <input type="password" id="cpConfirmPassword" minlength="8" required placeholder="Repita a nova senha">
+            </div>
+          </div>
+          <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px; border-top: 1px solid var(--border-color);">
+            <button type="button" class="btn btn-outline" onclick="closeChangePasswordModal()">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btnSubmitChangePassword">
+              <i class="fa-solid fa-key"></i> Salvar Nova Senha
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

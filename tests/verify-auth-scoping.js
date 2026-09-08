@@ -267,19 +267,29 @@ async function run() {
     vehicleId = newVehicle.data.id || 1;
   }
 
-  // 2. Marcos agenda um test-drive para o seu lead
+  // 2. Marcos agenda um test-drive para um lead garantidamente sem test-drives ativos
+  const tdLeadRes = await request('/api/leads', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${ownerToken}` }
+  }, {
+    name: 'Cliente TestDrive Marcos',
+    phone: `11977${Date.now().toString().slice(-6)}`,
+    assigned_to: marcosId
+  });
+  const tdLeadId = Number(tdLeadRes.data.id);
+
   const createTdRes = await request('/api/test-drives', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${marcosToken}` }
   }, {
-    lead_id: unauthorizedLead.id,
+    lead_id: tdLeadId,
     vehicle_id: vehicleId,
     scheduled_at: new Date(Date.now() + 86400000).toISOString(),
     notes: 'Cliente quer testar o sistema híbrido'
   });
 
   if (createTdRes.status !== 201 || !createTdRes.data.id) {
-    throw new Error('Falha no Teste 12: Marcos não conseguiu agendar o test-drive necessário para o teste');
+    throw new Error(`Falha no Teste 12: Marcos não conseguiu agendar o test-drive necessário para o teste: ${JSON.stringify(createTdRes.data)}`);
   }
   const marcosTdId = createTdRes.data.id;
   console.log(`Test-Drive agendado com sucesso para Marcos: #${marcosTdId}`);
@@ -318,7 +328,192 @@ async function run() {
   }
   console.log('Is Marcos test-drive visible to Owner? true');
 
-  console.log('\n🎉 ALL 12 TESTS PASSED SUCCESSFULLY AND VERIFIED WITH REAL DATA!');
+  console.log('\n--- TEST 13: Owner creates Manager user & Manager Login ---');
+  // 1. Owner cria usuário gerente
+  const managerEmail = `gerente_${Date.now()}@autolead.com`;
+  const createManagerRes = await request('/api/users', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${ownerToken}` }
+  }, {
+    name: 'Carlos Gerente',
+    email: managerEmail,
+    role: 'manager'
+  });
+
+  if (createManagerRes.status !== 201 || !createManagerRes.data.user?.id) {
+    throw new Error(`Falha no Teste 13: Owner não conseguiu criar gerente. Status: ${createManagerRes.status} Error: ${createManagerRes.data.error}`);
+  }
+  const managerId = createManagerRes.data.user.id;
+  const managerInitialPass = createManagerRes.data.initialPassword;
+  console.log(`Gerente criado com sucesso: ID #${managerId} (${managerEmail})`);
+
+  // 2. Gerente faz login
+  const loginManager = await request('/api/auth/login', { method: 'POST' }, {
+    email: managerEmail,
+    password: managerInitialPass
+  });
+
+  if (loginManager.status !== 200 || !loginManager.data.token) {
+    throw new Error(`Falha no Teste 13: Gerente não conseguiu fazer login. Status: ${loginManager.status}`);
+  }
+  const managerToken = loginManager.data.token;
+  console.log('Manager Login Status:', loginManager.status, 'Role:', loginManager.data.user?.role);
+
+  console.log('\n--- TEST 14: Manager Visibility (Bypasses assigned_to filter like Owner) ---');
+  const managerLeads = await request('/api/leads', {
+    headers: { 'Authorization': `Bearer ${managerToken}` }
+  });
+  if (managerLeads.status !== 200) {
+    throw new Error(`Falha no Teste 14: Gerente recebeu erro ao listar leads: ${managerLeads.status}`);
+  }
+  const freshOwnerLeads = await request('/api/leads', {
+    headers: { 'Authorization': `Bearer ${ownerToken}` }
+  });
+  console.log(`Manager Leads Count: ${managerLeads.data.data?.length} (Fresh Owner Leads Count: ${freshOwnerLeads.data.data?.length})`);
+  if (managerLeads.data.data?.length !== freshOwnerLeads.data.data?.length) {
+    throw new Error('Falha no Teste 14: Gerente deveria ver todos os leads da loja assim como o Owner!');
+  }
+
+  const managerTds = await request('/api/test-drives', {
+    headers: { 'Authorization': `Bearer ${managerToken}` }
+  });
+  if (managerTds.status !== 200 || !managerTds.data.data?.some(td => td.id === marcosTdId)) {
+    throw new Error('Falha no Teste 14: Gerente deveria ver o test-drive de Marcos!');
+  }
+  console.log('Manager sees all test drives including Marcos test-drive: true');
+
+  console.log('\n--- TEST 15: Manager Permission Limits (Cannot create Owner/Manager, Cannot edit Settings) ---');
+  // Tentativa de criar Owner (deve ser 403)
+  const mgrCreateOwner = await request('/api/users', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${managerToken}` }
+  }, {
+    name: 'Invasor Owner',
+    email: `owner_${Date.now()}@autolead.com`,
+    role: 'owner'
+  });
+  if (mgrCreateOwner.status !== 403) {
+    throw new Error(`Falha no Teste 15: Esperado 403 ao Gerente tentar criar Owner, recebeu ${mgrCreateOwner.status}`);
+  }
+  console.log('Manager creating Owner (Expected 403):', mgrCreateOwner.status);
+
+  // Tentativa de criar Manager (deve ser 403)
+  const mgrCreateMgr = await request('/api/users', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${managerToken}` }
+  }, {
+    name: 'Outro Gerente',
+    email: `gerente2_${Date.now()}@autolead.com`,
+    role: 'manager'
+  });
+  if (mgrCreateMgr.status !== 403) {
+    throw new Error(`Falha no Teste 15: Esperado 403 ao Gerente tentar criar Manager, recebeu ${mgrCreateMgr.status}`);
+  }
+  console.log('Manager creating Manager (Expected 403):', mgrCreateMgr.status);
+
+  // Tentativa de salvar configurações da loja (deve ser 403)
+  const mgrSaveSettings = await request('/api/settings', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${managerToken}` }
+  }, { dealershipName: 'Nome Alterado' });
+  if (mgrSaveSettings.status !== 403) {
+    throw new Error(`Falha no Teste 15: Esperado 403 ao Gerente tentar alterar configurações da loja, recebeu ${mgrSaveSettings.status}`);
+  }
+  console.log('Manager updating store settings (Expected 403):', mgrSaveSettings.status);
+
+  // Gerente cria vendedor com sucesso (deve ser 201)
+  const sellerEmail = `vendedor_${Date.now()}@autolead.com`;
+  const mgrCreateSeller = await request('/api/users', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${managerToken}` }
+  }, {
+    name: 'Vendedor Novo',
+    email: sellerEmail,
+    role: 'salesperson'
+  });
+  if (mgrCreateSeller.status !== 201 || !mgrCreateSeller.data.user?.id) {
+    throw new Error(`Falha no Teste 15: Gerente não conseguiu criar vendedor. Status: ${mgrCreateSeller.status}`);
+  }
+  const newSellerId = mgrCreateSeller.data.user.id;
+  const newSellerInitialPass = mgrCreateSeller.data.initialPassword;
+  console.log(`Gerente criou vendedor com sucesso: ID #${newSellerId} (${sellerEmail})`);
+
+  console.log('\n--- TEST 16: Manager Resets Salesperson Password & Reassigns Lead ---');
+  const resetPassRes = await request(`/api/users/${newSellerId}/reset-password`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${managerToken}` }
+  });
+  if (resetPassRes.status !== 200 || !resetPassRes.data.newPassword) {
+    throw new Error(`Falha no Teste 16: Falha ao redefinir senha do vendedor. Status: ${resetPassRes.status}`);
+  }
+  const resetPass = resetPassRes.data.newPassword;
+  console.log('Password reset successfully. New temporary password received.');
+
+  // Gerente reatribui lead para o novo vendedor
+  const reassignRes = await request(`/api/leads/${unauthorizedLead.id}`, {
+    method: 'PUT',
+    headers: { 'Authorization': `Bearer ${managerToken}` }
+  }, { assigned_to: newSellerId });
+  if (reassignRes.status !== 200) {
+    throw new Error(`Falha no Teste 16: Gerente não conseguiu reatribuir lead: Status ${reassignRes.status}`);
+  }
+  console.log(`Lead #${unauthorizedLead.id} reatribuído com sucesso para o vendedor #${newSellerId}`);
+
+  console.log('\n--- TEST 17: User Changes Own Password & Old Session Invalidation ---');
+  // 1. Novo vendedor loga com a senha resetada
+  const loginSellerRes = await request('/api/auth/login', { method: 'POST' }, {
+    email: sellerEmail,
+    password: resetPass
+  });
+  if (loginSellerRes.status !== 200 || !loginSellerRes.data.token) {
+    throw new Error(`Falha no Teste 17: Vendedor não conseguiu logar com a senha temporária. Status: ${loginSellerRes.status}`);
+  }
+  const sellerOldToken = loginSellerRes.data.token;
+
+  // 2. Vendedor altera a própria senha
+  const newPersonalPassword = 'MinhaNovaSenhaForte2026!';
+  const changePassRes = await request('/api/auth/change-password', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${sellerOldToken}` }
+  }, {
+    currentPassword: resetPass,
+    newPassword: newPersonalPassword
+  });
+  if (changePassRes.status !== 200) {
+    throw new Error(`Falha no Teste 17: Vendedor não conseguiu alterar a própria senha. Status: ${changePassRes.status} Error: ${changePassRes.data.error}`);
+  }
+  console.log('Password changed successfully by salesperson:', changePassRes.data.message);
+
+  // 3. Testa que o token antigo foi invalidado
+  const testOldToken = await request('/api/auth/me', {
+    headers: { 'Authorization': `Bearer ${sellerOldToken}` }
+  });
+  if (testOldToken.status !== 401) {
+    throw new Error(`Falha no Teste 17: O token antigo deveria retornar 401 Unauthorized após a troca de senha, mas retornou ${testOldToken.status}`);
+  }
+  console.log('Old session token invalidated after password change (Expected 401):', testOldToken.status);
+
+  // 4. Vendedor loga com sucesso com a nova senha
+  const loginWithNewPass = await request('/api/auth/login', { method: 'POST' }, {
+    email: sellerEmail,
+    password: newPersonalPassword
+  });
+  if (loginWithNewPass.status !== 200 || !loginWithNewPass.data.token) {
+    throw new Error('Falha no Teste 17: Vendedor não conseguiu logar com a nova senha.');
+  }
+  console.log('Login with new password succeeded! Token acquired.');
+
+  console.log('\n--- TEST 18: Sole Owner Invariant Protection ---');
+  const demoteOwnerRes = await request(`/api/users/${loginOwner.data.user.id}`, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bearer ${ownerToken}` }
+  }, { is_active: 0 });
+  if (demoteOwnerRes.status !== 400) {
+    throw new Error(`Falha no Teste 18: Esperado 400 ao tentar desativar o único Owner, recebeu ${demoteOwnerRes.status}`);
+  }
+  console.log('Sole owner deactivation blocked (Expected 400):', demoteOwnerRes.data.error);
+
+  console.log('\n🎉 ALL 18 TESTS PASSED SUCCESSFULLY AND VERIFIED WITH REAL DATA!');
 }
 
 run().catch(err => {
