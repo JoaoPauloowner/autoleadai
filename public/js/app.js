@@ -2548,6 +2548,9 @@ async function loadUsersList() {
       let actionButtons = '';
       if (canManage) {
         actionButtons = `
+          <button class="btn btn-outline btn-sm" onclick="openEditUserModal(${u.id})" title="Editar Usuário" style="font-size: 0.75rem; padding: 4px 8px;">
+            <i class="fa-solid fa-user-pen"></i> Editar
+          </button>
           <button class="btn btn-outline btn-sm" onclick="handleResetUserPassword(${u.id}, '${escapeHtml(u.name)}')" title="Redefinir Senha do Usuário" style="font-size: 0.75rem; padding: 4px 8px;">
             <i class="fa-solid fa-key"></i> Redefinir
           </button>
@@ -2600,6 +2603,90 @@ function openNewUserModal() {
 
 function closeNewUserModal() {
   document.getElementById('newUserModal').classList.remove('active');
+}
+
+function openEditUserModal(userId) {
+  const user = usersData.find(u => u.id === userId);
+  if (!user) return;
+
+  document.getElementById('euUserId').value = user.id;
+  document.getElementById('euName').value = user.name;
+  document.getElementById('euEmail').value = user.email;
+  document.getElementById('euActive').value = user.is_active ? '1' : '0';
+
+  const roleSelect = document.getElementById('euRole');
+  const alertEl = document.getElementById('editUserAlert');
+  if (alertEl) alertEl.style.display = 'none';
+
+  if (roleSelect) {
+    if (currentUser && currentUser.role === 'manager') {
+      roleSelect.innerHTML = `<option value="salesperson">Vendedor (Consultor Comercial)</option>`;
+      roleSelect.disabled = true;
+    } else {
+      roleSelect.disabled = false;
+      if (user.role === 'owner') {
+        roleSelect.innerHTML = `<option value="owner">Proprietário (Owner)</option>`;
+      } else {
+        roleSelect.innerHTML = `
+          <option value="salesperson" ${user.role === 'salesperson' ? 'selected' : ''}>Vendedor (Consultor Comercial)</option>
+          <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Gerente Comercial</option>
+        `;
+      }
+    }
+    roleSelect.value = user.role;
+  }
+
+  document.getElementById('editUserModal').classList.add('active');
+}
+
+function closeEditUserModal() {
+  document.getElementById('editUserModal').classList.remove('active');
+}
+
+async function handleUpdateUserSubmit(e) {
+  e.preventDefault();
+  const userId = document.getElementById('euUserId').value;
+  const name = document.getElementById('euName').value.trim();
+  const email = document.getElementById('euEmail').value.trim();
+  const role = document.getElementById('euRole').value;
+  const isActive = document.getElementById('euActive').value === '1';
+  const alertEl = document.getElementById('editUserAlert');
+  const btn = document.getElementById('btnUpdateUser');
+
+  if (alertEl) alertEl.style.display = 'none';
+  btn.disabled = true;
+
+  try {
+    const payload = { name, email, is_active: isActive };
+    if (currentUser && currentUser.role === 'owner') {
+      payload.role = role;
+    }
+
+    const res = await fetch(`/api/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const json = await res.json();
+    if (!json.success) {
+      if (alertEl) {
+        alertEl.textContent = json.error || 'Erro ao atualizar usuário.';
+        alertEl.style.display = 'block';
+      }
+      return;
+    }
+
+    closeEditUserModal();
+    loadUsersList();
+  } catch (err) {
+    if (alertEl) {
+      alertEl.textContent = 'Erro de comunicação com o servidor.';
+      alertEl.style.display = 'block';
+    }
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function handleSaveUser(e) {

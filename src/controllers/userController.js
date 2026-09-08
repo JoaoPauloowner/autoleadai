@@ -184,6 +184,27 @@ function updateUser(req, res) {
     const newName = req.body.name !== undefined ? String(req.body.name).trim() : targetUser.name;
     const newRole = req.body.role !== undefined ? String(req.body.role).trim().toLowerCase() : targetUser.role;
     let newActive = targetUser.is_active;
+    let newEmail = targetUser.email;
+
+    if (req.body.email !== undefined) {
+      const cleanEmail = String(req.body.email).trim().toLowerCase();
+      if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+        return res.status(400).json({
+          success: false,
+          error: 'Formato de e-mail inválido.'
+        });
+      }
+
+      // Verifica se o novo e-mail já pertence a outro usuário cadastrado
+      const duplicate = db.prepare('SELECT id FROM users WHERE LOWER(email) = ? AND id != ?').get(cleanEmail, targetId);
+      if (duplicate) {
+        return res.status(409).json({
+          success: false,
+          error: 'Já existe outro usuário cadastrado com este e-mail.'
+        });
+      }
+      newEmail = cleanEmail;
+    }
 
     if (req.body.is_active !== undefined) {
       newActive = req.body.is_active ? 1 : 0;
@@ -206,9 +227,9 @@ function updateUser(req, res) {
 
     db.prepare(`
       UPDATE users
-      SET name = ?, role = ?, is_active = ?
+      SET name = ?, email = ?, role = ?, is_active = ?
       WHERE id = ?
-    `).run(newName, newRole, newActive, targetId);
+    `).run(newName, newEmail, newRole, newActive, targetId);
 
     // Se o usuário foi desativado, revoga todas as suas sessões ativas
     if (newActive === 0) {
@@ -225,6 +246,7 @@ function updateUser(req, res) {
       details: {
         updated_fields: {
           name: newName !== targetUser.name ? newName : undefined,
+          email: newEmail !== targetUser.email ? newEmail : undefined,
           role: newRole !== targetUser.role ? newRole : undefined,
           is_active: newActive !== targetUser.is_active ? newActive : undefined
         }
@@ -237,7 +259,7 @@ function updateUser(req, res) {
         id: targetUser.id,
         organization_id: targetUser.organization_id,
         name: newName,
-        email: targetUser.email,
+        email: newEmail,
         role: newRole,
         is_active: newActive
       }

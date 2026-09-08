@@ -1112,27 +1112,6 @@
           <p class="login-subtitle">Acesso Seguro ao Cockpit da Concessionária</p>
         </div>
 
-        <!-- Acesso Rápido por Papel (1 Clique) -->
-        <div style="margin-bottom: 20px; padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.12); border-radius: var(--radius-md);">
-          <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; font-weight: 600;">
-            <i class="fa-solid fa-users"></i> Trocar Conta / Acesso Rápido:
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <button type="button" class="btn btn-outline btn-sm" onclick="fillEmail('admin@autolead.com')" style="justify-content: space-between; font-size: 0.76rem; padding: 6px 10px; width: 100%;">
-              <span><i class="fa-solid fa-crown" style="color: var(--accent-amber);"></i> Carlos Diretor (admin@autolead.com)</span>
-              <span class="stat-badge success" style="font-size: 0.6rem;">DONO / ADMIN</span>
-            </button>
-            <button type="button" class="btn btn-outline btn-sm" onclick="fillEmail('lucas@autolead.com')" style="justify-content: space-between; font-size: 0.76rem; padding: 6px 10px; width: 100%;">
-              <span><i class="fa-solid fa-user-tie" style="color: var(--primary);"></i> Lucas Mendes (lucas@autolead.com)</span>
-              <span class="stat-badge info" style="font-size: 0.6rem;">VENDEDOR</span>
-            </button>
-            <button type="button" class="btn btn-outline btn-sm" onclick="fillEmail('marcos@autolead.com')" style="justify-content: space-between; font-size: 0.76rem; padding: 6px 10px; width: 100%;">
-              <span><i class="fa-solid fa-user-tie" style="color: var(--accent-cyan);"></i> Marcos Silva (marcos@autolead.com)</span>
-              <span class="stat-badge info" style="font-size: 0.6rem;">VENDEDOR</span>
-            </button>
-          </div>
-        </div>
-
         <div class="login-alert" id="loginAlert" style="display: none;"></div>
 
         <form id="loginForm" onsubmit="handleLoginSubmit(event)">
@@ -1140,7 +1119,7 @@
             <label for="loginEmail">E-mail ou Usuário</label>
             <div class="input-with-icon">
               <i class="fa-solid fa-envelope"></i>
-              <input type="text" id="loginEmail" placeholder="admin@autolead.com" autocomplete="username" required>
+              <input type="text" id="loginEmail" placeholder="seu.email@concessionaria.com.br" autocomplete="username" required>
             </div>
           </div>
 
@@ -1204,6 +1183,51 @@
             <button type="button" class="btn btn-outline" onclick="closeNewUserModal()">Cancelar</button>
             <button type="submit" class="btn btn-primary" id="btnSaveUser">
               <i class="fa-solid fa-check"></i> Cadastrar Usuário
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar Usuário da Equipe -->
+  <div class="modal" id="editUserModal">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-user-pen" style="color: var(--primary);"></i> Editar Usuário</h3>
+          <button class="modal-close" onclick="closeEditUserModal()">&times;</button>
+        </div>
+        <form id="editUserForm" onsubmit="handleUpdateUserSubmit(event)">
+          <input type="hidden" id="euUserId">
+          <div class="modal-body" style="padding: 20px;">
+            <div id="editUserAlert" class="alert alert-danger" style="display: none; margin-bottom: 14px; padding: 10px; border-radius: 8px; font-size: 0.85rem;"></div>
+            <div class="form-group">
+              <label>Nome Completo *</label>
+              <input type="text" id="euName" placeholder="Ex: Lucas Mendes" required>
+            </div>
+            <div class="form-group">
+              <label>E-mail Corporativo *</label>
+              <input type="email" id="euEmail" placeholder="lucas@autolead.com" required>
+            </div>
+            <div class="form-group">
+              <label>Perfil de Acesso (Papel) *</label>
+              <select id="euRole" required>
+                <!-- Preenchido dinamicamente via openEditUserModal -->
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Status da Conta *</label>
+              <select id="euActive" required>
+                <option value="1">Ativo (Acesso Liberado)</option>
+                <option value="0">Inativo (Acesso Bloqueado)</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px; border-top: 1px solid var(--border-color);">
+            <button type="button" class="btn btn-outline" onclick="closeEditUserModal()">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btnUpdateUser">
+              <i class="fa-solid fa-check"></i> Salvar Alterações
             </button>
           </div>
         </form>

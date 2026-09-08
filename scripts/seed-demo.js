@@ -23,7 +23,7 @@ try {
 
   const updateUser = db.prepare(`
     UPDATE users 
-    SET name = ?, password_hash = ?, role = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP
+    SET name = ?, password_hash = ?, role = ?, is_active = 1
     WHERE email = ?
   `);
 
