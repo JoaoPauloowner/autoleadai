@@ -325,7 +325,8 @@ async function processWithSmartFallback({ lead, userMessage, historyRows, execut
       result: toolResult
     });
 
-    replyText = `Sensacional! Seu **Test Drive** está confirmado para *${dataHora}* com o *${toolResult.veiculo}*!\n\n📍 Nosso showroom: ${config.dealership.address}, ${config.dealership.city}.\nAo chegar, procure por ${config.dealership.defaultSeller} na recepção. O veículo estará abastecido e pronto para você pilotar! 🚗💨`;
+    const sellerName = toolResult.consultor || 'Consultor de Plantão';
+    replyText = `Sensacional! Seu **Test Drive** está confirmado para *${dataHora}* com o *${toolResult.veiculo}*!\n\n📍 Nosso showroom: ${config.dealership.address}, ${config.dealership.city}.\nAo chegar, procure por ${sellerName} na recepção. O veículo estará abastecido e pronto para você pilotar! 🚗💨`;
   }
   // 2. Intenção: Simulação de Financiamento / Parcelas
   else if (msgLower.includes('financiamento') || msgLower.includes('financiar') || msgLower.includes('parcela') || msgLower.includes('entrada')) {

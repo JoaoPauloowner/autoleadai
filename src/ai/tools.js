@@ -370,14 +370,28 @@ const toolExecutors = {
       WHERE lead_id = ? AND status IN ('pendente', 'confirmado')
     `).get(lead_id);
 
+    // Obtém o nome do vendedor real atribuído ao lead
+    let sellerName = config.dealership.defaultSeller || 'Consultor de Plantão';
+    if (lead_id) {
+      const assignedSeller = db.prepare(`
+        SELECT u.name FROM leads l
+        JOIN users u ON u.id = l.assigned_to
+        WHERE l.id = ?
+      `).get(lead_id);
+      if (assignedSeller && assignedSeller.name) {
+        sellerName = assignedSeller.name;
+      }
+    }
+
     if (existingActive) {
       db.prepare(`
         UPDATE test_drives 
-        SET vehicle_id = ?, scheduled_at = ?, notes = ?, status = 'confirmado'
+        SET vehicle_id = ?, scheduled_at = ?, seller_name = ?, notes = ?, status = 'confirmado'
         WHERE id = ?
       `).run(
         veiculo_id,
         data_hora,
+        sellerName,
         observacoes || 'Reagendado pelo assistente virtual AutoLead',
         existingActive.id
       );
@@ -391,7 +405,7 @@ const toolExecutors = {
         lead_id,
         veiculo_id,
         data_hora,
-        config.dealership.defaultSeller,
+        sellerName,
         observacoes || 'Agendado pelo assistente virtual AutoLead'
       );
     }
@@ -402,7 +416,8 @@ const toolExecutors = {
 
     return {
       sucesso: true,
-      mensagem: `Test Drive confirmado para ${car.make} ${car.model} em ${data_hora} com o consultor ${config.dealership.defaultSeller}.`,
+      mensagem: `Test Drive confirmado para ${car.make} ${car.model} em ${data_hora} com o consultor ${sellerName}.`,
+      consultor: sellerName,
       concessionaria: {
         nome: config.dealership.name,
         endereco: config.dealership.address,

@@ -2003,6 +2003,9 @@ async function loadSettings() {
     const addrInput = document.getElementById('dealershipAddressInput');
     if (addrInput) addrInput.value = data.dealership.address;
 
+    const cityInput = document.getElementById('dealershipCityInput');
+    if (cityInput && data.dealership.city) cityInput.value = data.dealership.city;
+
     const webhookDisplay = document.getElementById('webhookUrlDisplay');
     if (webhookDisplay) webhookDisplay.textContent = `${window.location.origin}/api/webhook/whatsapp`;
   } catch (e) {
@@ -2015,11 +2018,13 @@ async function handleSaveSettings(e) {
   const dealershipName = document.getElementById('dealershipNameInput')?.value?.trim();
   const dealershipPhone = document.getElementById('dealershipPhoneInput')?.value?.trim();
   const dealershipAddress = document.getElementById('dealershipAddressInput')?.value?.trim();
+  const dealershipCity = document.getElementById('dealershipCityInput')?.value?.trim();
 
   const bodyData = {
     dealershipName,
     dealershipPhone,
-    dealershipAddress
+    dealershipAddress,
+    dealershipCity
   };
 
   const providerEl = document.getElementById('aiProviderSelect') || document.querySelector('input[name="aiProvider"]:checked');

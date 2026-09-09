@@ -180,6 +180,7 @@ router.post('/settings', requireOwner, (req, res) => {
       deepseekKey,
       dealershipName,
       dealershipAddress,
+      dealershipCity,
       dealershipPhone,
       aiReviewMode
     } = req.body;
@@ -190,6 +191,7 @@ router.post('/settings', requireOwner, (req, res) => {
     if (deepseekKey) { config.deepseek.apiKey = deepseekKey; settingsStore.save('deepseek_api_key', deepseekKey); }
     if (dealershipName) { config.dealership.name = dealershipName; settingsStore.save('dealership_name', dealershipName); }
     if (dealershipAddress) { config.dealership.address = dealershipAddress; settingsStore.save('dealership_address', dealershipAddress); }
+    if (dealershipCity) { config.dealership.city = dealershipCity; settingsStore.save('dealership_city', dealershipCity); }
     if (dealershipPhone) { config.dealership.phone = dealershipPhone; settingsStore.save('dealership_phone', dealershipPhone); }
     if (aiReviewMode !== undefined) {
       const boolVal = (aiReviewMode === true || aiReviewMode === 'true' || aiReviewMode === 1 || aiReviewMode === '1');
@@ -207,6 +209,7 @@ router.post('/settings', requireOwner, (req, res) => {
         provider,
         dealershipName,
         dealershipAddress,
+        dealershipCity,
         dealershipPhone,
         aiReviewMode,
         changedKeys: Object.keys(req.body).filter(k => !k.toLowerCase().includes('key'))

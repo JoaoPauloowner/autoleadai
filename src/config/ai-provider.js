@@ -21,7 +21,7 @@ const config = {
     city: process.env.DEALERSHIP_CITY || 'São Paulo - SP',
     address: process.env.DEALERSHIP_ADDRESS || 'Av. dos Bandeirantes, 1500',
     phone: process.env.DEALERSHIP_PHONE || '(11) 99999-8888',
-    defaultSeller: process.env.DEFAULT_SELLER_NAME || 'Lucas Mendes',
+    defaultSeller: 'Consultor de Plantão',
     interestRate: parseFloat(process.env.AVERAGE_MONTHLY_INTEREST_RATE || '0.0149')
   }
 };
@@ -37,6 +37,7 @@ if (persisted.ai_review_mode !== undefined) {
   config.aiReviewMode = (persisted.ai_review_mode === 'true' || persisted.ai_review_mode === true || persisted.ai_review_mode === 1 || persisted.ai_review_mode === '1');
 }
 if (persisted.dealership_name) config.dealership.name = persisted.dealership_name;
+if (persisted.dealership_city) config.dealership.city = persisted.dealership_city;
 if (persisted.dealership_address) config.dealership.address = persisted.dealership_address;
 if (persisted.dealership_phone) config.dealership.phone = persisted.dealership_phone;
 
