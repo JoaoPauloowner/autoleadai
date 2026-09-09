@@ -6,6 +6,7 @@ const db = require('../config/database');
 // Inicialização condicional dos clientes oficiais
 let openaiClient = null;
 let googleGenAIClient = null;
+let deepseekClient = null;
 
 try {
   if (config.openai.apiKey) {
@@ -14,6 +15,18 @@ try {
   }
 } catch (e) {
   console.warn('OpenAI SDK warning:', e.message);
+}
+
+try {
+  if (config.deepseek && config.deepseek.apiKey) {
+    const OpenAI = require('openai');
+    deepseekClient = new OpenAI({
+      apiKey: config.deepseek.apiKey,
+      baseURL: config.deepseek.baseURL || 'https://api.deepseek.com'
+    });
+  }
+} catch (e) {
+  console.warn('DeepSeek SDK warning:', e.message);
 }
 
 try {
@@ -28,7 +41,7 @@ try {
 /**
  * Orquestrador principal do Agente Conversacional (Cérebro Próprio)
  */
-async function processMessage({ leadId, userMessage, channel = 'simulator' }) {
+async function processMessage({ leadId, userMessage, channel = 'simulator', copilotStatus = 'approved' }) {
   // 1. Busca ou cria o lead no banco
   let lead = null;
   if (leadId) {
@@ -83,6 +96,11 @@ async function processMessage({ leadId, userMessage, channel = 'simulator' }) {
         withTimeout(() => processWithOpenAI({ lead, historyRows, systemPrompt, executedToolsLog }), 15000)
       );
       replyText = result.replyText;
+    } else if (activeProvider === 'deepseek' && config.deepseek && config.deepseek.apiKey && deepseekClient) {
+      const result = await aiCircuitBreaker.run(() =>
+        withTimeout(() => processWithDeepSeek({ lead, historyRows, systemPrompt, executedToolsLog }), 15000)
+      );
+      replyText = result.replyText;
     } else if (activeProvider === 'gemini' && config.gemini.apiKey && googleGenAIClient) {
       const result = await aiCircuitBreaker.run(() =>
         withTimeout(() => processWithGemini({ lead, historyRows, systemPrompt, executedToolsLog }), 15000)
@@ -101,24 +119,47 @@ async function processMessage({ leadId, userMessage, channel = 'simulator' }) {
   }
 
   // 5. Salva a resposta da IA no banco
-  db.prepare(`
-    INSERT INTO chat_messages (lead_id, sender, content, tool_calls)
-    VALUES (?, 'assistant', ?, ?)
-  `).run(lead.id, replyText, executedToolsLog.length > 0 ? JSON.stringify(executedToolsLog) : null);
+  const insertRes = db.prepare(`
+    INSERT INTO chat_messages (lead_id, sender, content, tool_calls, copilot_status)
+    VALUES (?, 'assistant', ?, ?, ?)
+  `).run(
+    lead.id,
+    replyText,
+    executedToolsLog.length > 0 ? JSON.stringify(executedToolsLog) : null,
+    copilotStatus || 'approved'
+  );
 
   // 6. Retorna para o controlador
   return {
+    messageId: Number(insertRes.lastInsertRowid),
     leadId: lead.id,
     reply: replyText,
     tools: executedToolsLog,
-    provider: activeProvider
+    provider: activeProvider,
+    copilotStatus: copilotStatus || 'approved'
   };
+}
+
+/**
+ * Processamento via DeepSeek (compatível com formato OpenAI)
+ */
+async function processWithDeepSeek({ lead, historyRows, systemPrompt, executedToolsLog }) {
+  return processWithOpenAI({
+    lead,
+    historyRows,
+    systemPrompt,
+    executedToolsLog,
+    customClient: deepseekClient,
+    customModel: config.deepseek?.model || 'deepseek-chat'
+  });
 }
 
 /**
  * Processamento via OpenAI com Function Calling nativo
  */
-async function processWithOpenAI({ lead, historyRows, systemPrompt, executedToolsLog }) {
+async function processWithOpenAI({ lead, historyRows, systemPrompt, executedToolsLog, customClient = null, customModel = null }) {
+  const client = customClient || openaiClient;
+  const modelToUse = customModel || config.openai.model || 'gpt-4o-mini';
   const messages = [
     { role: 'system', content: systemPrompt }
   ];
@@ -136,8 +177,8 @@ async function processWithOpenAI({ lead, historyRows, systemPrompt, executedTool
 
   while (keepRunning && iterations < 5) {
     iterations++;
-    const response = await openaiClient.chat.completions.create({
-      model: config.openai.model || 'gpt-4o-mini',
+    const response = await client.chat.completions.create({
+      model: modelToUse,
       messages,
       tools: toolDefinitions,
       tool_choice: 'auto',
@@ -184,7 +225,7 @@ async function processWithOpenAI({ lead, historyRows, systemPrompt, executedTool
  * Processamento via Google Gemini com Function Calling
  */
 async function processWithGemini({ lead, historyRows, systemPrompt, executedToolsLog }) {
-  const modelName = config.gemini.model || 'gemini-2.0-flash';
+  const modelName = config.gemini.model || 'gemini-3.1-flash-lite';
   
   // Converte as definições para o formato aceito pelo SDK do Gemini
   const functionDeclarations = toolDefinitions.map(t => ({

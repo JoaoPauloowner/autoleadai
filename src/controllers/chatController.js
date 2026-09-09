@@ -3,6 +3,7 @@ const db = require('../config/database');
 const { calculateLeadScore } = require('../ai/scorer');
 const multimodal = require('../ai/multimodal');
 const whatsappService = require('../services/whatsappService');
+const auditService = require('../services/auditService');
 
 exports.sendMessage = async (req, res) => {
   try {
@@ -305,6 +306,309 @@ exports.toggleLeadAiStatus = (req, res) => {
       message: newStatus === 1 ? 'IA reativada para este atendimento' : 'Vendedor humano assumiu o atendimento'
     });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Lista mensagens geradas pela IA que estão aguardando aprovação humana (Copiloto)
+ * Escopo: Vendedor só vê dos seus leads; Gerente e Owner veem todos.
+ */
+exports.getPendingReviewMessages = (req, res) => {
+  try {
+    let sql = `
+      SELECT 
+        m.id,
+        m.lead_id,
+        m.sender,
+        m.content,
+        m.tool_calls,
+        m.copilot_status,
+        m.created_at,
+        l.name AS lead_name,
+        l.phone AS lead_phone,
+        l.status AS lead_status,
+        l.assigned_to,
+        l.remote_jid,
+        u.name AS seller_name,
+        v.make AS vehicle_make,
+        v.model AS vehicle_model
+      FROM chat_messages m
+      JOIN leads l ON l.id = m.lead_id
+      LEFT JOIN users u ON u.id = l.assigned_to
+      LEFT JOIN vehicles v ON v.id = l.interested_vehicle_id
+      WHERE m.copilot_status = 'pending_review'
+    `;
+    const params = [];
+
+    // Escopo por vendedor
+    if (req.user && req.user.role === 'salesperson') {
+      sql += ' AND l.assigned_to = ?';
+      params.push(req.user.id);
+    }
+
+    sql += ' ORDER BY m.created_at ASC';
+    const pending = db.prepare(sql).all(...params);
+
+    res.json({ success: true, count: pending.length, data: pending });
+  } catch (error) {
+    console.error('Erro ao buscar mensagens pendentes de revisão:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Aprova rascunho da IA e envia exatamente como gerado
+ */
+exports.approvePendingMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const msg = db.prepare(`
+      SELECT m.*, l.phone AS lead_phone, l.remote_jid, l.assigned_to, l.name AS lead_name
+      FROM chat_messages m
+      JOIN leads l ON l.id = m.lead_id
+      WHERE m.id = ?
+    `).get(messageId);
+
+    if (!msg) {
+      return res.status(404).json({ success: false, error: 'Mensagem pendente não encontrada' });
+    }
+
+    if (msg.copilot_status !== 'pending_review') {
+      return res.status(400).json({ success: false, error: `Esta mensagem já foi processada (status: ${msg.copilot_status})` });
+    }
+
+    // Escopo de autorização: vendedor só age nos seus próprios leads
+    if (req.user && req.user.role === 'salesperson' && msg.assigned_to !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Acesso negado. Esta mensagem pertence a um lead sob responsabilidade de outro vendedor.'
+      });
+    }
+
+    // Envia via WhatsApp (se conectado)
+    let sentViaWhatsApp = false;
+    let whatsappError = null;
+    if (msg.lead_phone && !msg.lead_phone.startsWith('sim_')) {
+      try {
+        await whatsappService.sendTextMessage(msg.lead_phone, msg.content, msg.remote_jid);
+        sentViaWhatsApp = true;
+      } catch (waErr) {
+        console.warn('Aviso ao enviar via WhatsApp após aprovação:', waErr.message);
+        whatsappError = waErr.message;
+      }
+    }
+
+    // Atualiza status para 'approved'
+    db.prepare(`
+      UPDATE chat_messages
+      SET copilot_status = 'approved'
+      WHERE id = ?
+    `).run(messageId);
+
+    db.prepare(`
+      UPDATE leads
+      SET last_outbound_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(msg.lead_id);
+
+    // Auditoria
+    auditService.logAudit({
+      organization_id: 'default',
+      actor: req.user ? `${req.user.name} (${req.user.role})` : 'admin',
+      action: 'copilot_approve',
+      entity_type: 'chat_message',
+      entity_id: String(messageId),
+      details: {
+        lead_id: msg.lead_id,
+        lead_name: msg.lead_name,
+        sentViaWhatsApp,
+        whatsappError,
+        content: msg.content
+      }
+    });
+
+    res.json({
+      success: true,
+      messageId: Number(messageId),
+      copilot_status: 'approved',
+      sentViaWhatsApp,
+      whatsappError,
+      message: 'Resposta da IA aprovada e enviada com sucesso!'
+    });
+  } catch (error) {
+    console.error('Erro ao aprovar mensagem:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Edita o texto do rascunho da IA e envia a versão customizada
+ */
+exports.editAndSendPendingMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { editedText } = req.body;
+
+    if (!editedText || !editedText.trim()) {
+      return res.status(400).json({ success: false, error: 'O texto editado não pode ser vazio' });
+    }
+
+    const msg = db.prepare(`
+      SELECT m.*, l.phone AS lead_phone, l.remote_jid, l.assigned_to, l.name AS lead_name
+      FROM chat_messages m
+      JOIN leads l ON l.id = m.lead_id
+      WHERE m.id = ?
+    `).get(messageId);
+
+    if (!msg) {
+      return res.status(404).json({ success: false, error: 'Mensagem pendente não encontrada' });
+    }
+
+    if (msg.copilot_status !== 'pending_review') {
+      return res.status(400).json({ success: false, error: `Esta mensagem já foi processada (status: ${msg.copilot_status})` });
+    }
+
+    // Escopo de autorização: vendedor só age nos seus próprios leads
+    if (req.user && req.user.role === 'salesperson' && msg.assigned_to !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Acesso negado. Esta mensagem pertence a um lead sob responsabilidade de outro vendedor.'
+      });
+    }
+
+    const cleanEditedText = editedText.trim();
+    const originalText = msg.content;
+
+    // Envia via WhatsApp (se conectado)
+    let sentViaWhatsApp = false;
+    let whatsappError = null;
+    if (msg.lead_phone && !msg.lead_phone.startsWith('sim_')) {
+      try {
+        await whatsappService.sendTextMessage(msg.lead_phone, cleanEditedText, msg.remote_jid);
+        sentViaWhatsApp = true;
+      } catch (waErr) {
+        console.warn('Aviso ao enviar via WhatsApp após edição:', waErr.message);
+        whatsappError = waErr.message;
+      }
+    }
+
+    // Atualiza conteúdo e status para 'edited'
+    db.prepare(`
+      UPDATE chat_messages
+      SET content = ?, copilot_status = 'edited'
+      WHERE id = ?
+    `).run(cleanEditedText, messageId);
+
+    db.prepare(`
+      UPDATE leads
+      SET last_outbound_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(msg.lead_id);
+
+    // Auditoria
+    auditService.logAudit({
+      organization_id: 'default',
+      actor: req.user ? `${req.user.name} (${req.user.role})` : 'admin',
+      action: 'copilot_edit_and_send',
+      entity_type: 'chat_message',
+      entity_id: String(messageId),
+      details: {
+        lead_id: msg.lead_id,
+        lead_name: msg.lead_name,
+        original_text: originalText,
+        edited_text: cleanEditedText,
+        sentViaWhatsApp,
+        whatsappError
+      }
+    });
+
+    res.json({
+      success: true,
+      messageId: Number(messageId),
+      copilot_status: 'edited',
+      content: cleanEditedText,
+      sentViaWhatsApp,
+      whatsappError,
+      message: 'Mensagem editada e enviada com sucesso!'
+    });
+  } catch (error) {
+    console.error('Erro ao editar e enviar mensagem:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Recusa rascunho da IA (não envia ao cliente)
+ * Opcionalmente desativa IA do lead para assumir atendimento humano
+ */
+exports.rejectPendingMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { markHumanTakeover } = req.body || {};
+
+    const msg = db.prepare(`
+      SELECT m.*, l.assigned_to, l.name AS lead_name
+      FROM chat_messages m
+      JOIN leads l ON l.id = m.lead_id
+      WHERE m.id = ?
+    `).get(messageId);
+
+    if (!msg) {
+      return res.status(404).json({ success: false, error: 'Mensagem pendente não encontrada' });
+    }
+
+    if (msg.copilot_status !== 'pending_review') {
+      return res.status(400).json({ success: false, error: `Esta mensagem já foi processada (status: ${msg.copilot_status})` });
+    }
+
+    // Escopo de autorização: vendedor só age nos seus próprios leads
+    if (req.user && req.user.role === 'salesperson' && msg.assigned_to !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Acesso negado. Esta mensagem pertence a um lead sob responsabilidade de outro vendedor.'
+      });
+    }
+
+    // Atualiza status para 'rejected' (NÃO envia nada ao WhatsApp)
+    db.prepare(`
+      UPDATE chat_messages
+      SET copilot_status = 'rejected'
+      WHERE id = ?
+    `).run(messageId);
+
+    // Se markHumanTakeover === true, seta ai_enabled = 0 no lead
+    if (markHumanTakeover) {
+      db.prepare(`
+        UPDATE leads
+        SET ai_enabled = 0, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(msg.lead_id);
+    }
+
+    // Auditoria
+    auditService.logAudit({
+      organization_id: 'default',
+      actor: req.user ? `${req.user.name} (${req.user.role})` : 'admin',
+      action: 'copilot_reject',
+      entity_type: 'chat_message',
+      entity_id: String(messageId),
+      details: {
+        lead_id: msg.lead_id,
+        lead_name: msg.lead_name,
+        markHumanTakeover: !!markHumanTakeover
+      }
+    });
+
+    res.json({
+      success: true,
+      messageId: Number(messageId),
+      copilot_status: 'rejected',
+      ai_enabled: markHumanTakeover ? 0 : 1,
+      message: 'Rascunho da IA recusado com sucesso.'
+    });
+  } catch (error) {
+    console.error('Erro ao recusar mensagem:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };

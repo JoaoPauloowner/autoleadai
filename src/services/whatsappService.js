@@ -10,6 +10,7 @@ const {
 
 const agent = require('../ai/agent');
 const db = require('../config/database');
+const config = require('../config/ai-provider');
 const leadRoutingService = require('../services/leadRoutingService');
 const auditService = require('../services/auditService');
 
@@ -184,18 +185,34 @@ async function startWhatsApp() {
             continue;
           }
 
-          // Resposta automática da IA
+          // Resposta da IA (ou rascunho se modo de revisão estiver ativo)
           await sock.sendPresenceUpdate('composing', senderJid);
           const aiResult = await agent.processMessage({
             leadId: lead.id,
             userMessage: messageText,
-            channel: 'whatsapp'
+            channel: 'whatsapp',
+            copilotStatus: config.aiReviewMode ? 'pending_review' : 'approved'
           });
 
-          // Finaliza o status de digitando e responde
+          // Finaliza o status de digitando
           await sock.sendPresenceUpdate('paused', senderJid);
-          await sock.sendMessage(senderJid, { text: aiResult.reply });
-          console.log(`🤖 [WhatsApp Respondido pela IA] Para: ${senderPhone}`);
+
+          if (config.aiReviewMode) {
+            // No modo de revisão, NÃO envia ao WhatsApp automaticamente
+            auditService.logAudit({
+              organization_id: 'default',
+              actor: 'ai_copilot',
+              action: 'ai_draft_pending_review',
+              entity_type: 'chat_message',
+              entity_id: String(aiResult.messageId),
+              details: `Rascunho gerado pela IA para lead #${lead.id} (${lead.name}) aguardando revisão humana.`
+            });
+            console.log(`⏳ [Modo Revisão Ativo] Rascunho da IA #${aiResult.messageId} salvo para aprovação humana (Lead #${lead.id})`);
+          } else {
+            // Modo padrão: envio automático imediato
+            await sock.sendMessage(senderJid, { text: aiResult.reply });
+            console.log(`🤖 [WhatsApp Respondido pela IA] Para: ${senderPhone}`);
+          }
         } catch (msgErr) {
           console.error('Erro ao processar mensagem do WhatsApp:', msgErr);
         }

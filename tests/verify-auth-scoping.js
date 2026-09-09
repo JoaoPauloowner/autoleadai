@@ -149,20 +149,33 @@ async function run() {
   if (!isDistributedSequentially) throw new Error('Falha no Teste 9: Round-Robin não distribuiu para vendedores diferentes');
 
   console.log('\n--- TEST 10: Lucas Tries to Access or Update Marcos\'s Lead (Must be 403) ---');
-  // Re-busca a lista atualizada de leads do Marcos para garantir que temos um lead real
-  const freshMarcosLeads = await request('/api/leads', {
-    headers: { 'Authorization': `Bearer ${marcosToken}` }
+  // 1. Cria explicitamente um lead novo pelo Owner
+  const createLeadMarcosRes = await request('/api/leads', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${ownerToken}` }
+  }, {
+    name: 'Cliente Exclusivo Marcos',
+    phone: `11988${Date.now().toString().slice(-6)}`
   });
 
-  if (!freshMarcosLeads.data.data || freshMarcosLeads.data.data.length === 0) {
-    throw new Error('Falha no Teste 10: nenhum lead disponível para testar o cenário');
+  if (createLeadMarcosRes.status !== 201 || !createLeadMarcosRes.data.id) {
+    throw new Error(`Falha no Teste 10: falha ao criar lead para o teste: ${JSON.stringify(createLeadMarcosRes.data)}`);
   }
 
-  const unauthorizedLead = freshMarcosLeads.data.data[0];
-  if (!unauthorizedLead || !unauthorizedLead.id) {
-    throw new Error('Falha no Teste 10: nenhum lead disponível para testar o cenário');
+  const createdLeadId = Number(createLeadMarcosRes.data.id);
+
+  // 2. Garante/força a atribuição desse lead ao Marcos via rota de atualização/reatribuição (PUT /api/leads/:id) chamada como Owner
+  const reassignToMarcosRes = await request(`/api/leads/${createdLeadId}`, {
+    method: 'PUT',
+    headers: { 'Authorization': `Bearer ${ownerToken}` }
+  }, { assigned_to: marcosId });
+
+  if (reassignToMarcosRes.status !== 200) {
+    throw new Error(`Falha no Teste 10: Owner falhou ao forçar atribuição do lead #${createdLeadId} para Marcos (#${marcosId})`);
   }
 
+  const unauthorizedLead = { id: createdLeadId };
+  console.log(`Lead #${unauthorizedLead.id} criado e explicitamente atribuído a Marcos (#${marcosId}) pelo Owner.`);
   console.log(`Testando tentativa de acesso não autorizado de Lucas ao lead #${unauthorizedLead.id} de Marcos...`);
 
   const lucasAccessAttempt = await request(`/api/leads/${unauthorizedLead.id}`, {

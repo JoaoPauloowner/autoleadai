@@ -12,6 +12,7 @@ let vehiclesData = [];
 let leadsData = [];
 let testDrivesData = [];
 let tasksData = [];
+let pendingReviewList = [];
 
 // ==========================================
 // 0. SEGURANÇA: ESCAPE HTML E AUTENTICAÇÃO
@@ -413,18 +414,22 @@ function switchView(viewName) {
 
   if (viewName === 'dashboard') {
     loadDashboardData();
+    loadPendingReviewMessages(true);
   } else if (viewName === 'livechat') {
     loadLiveConversations();
+    loadPendingReviewMessages();
     if (livePollingTimer) clearInterval(livePollingTimer);
     livePollingTimer = setInterval(() => {
       if (currentView === 'livechat') {
         loadLiveConversations(true);
+        loadPendingReviewMessages(true);
         if (activeChatLeadId) {
           renderLiveChatMessages(activeChatLeadId, true);
         }
       }
     }, 3000);
   } else {
+    loadPendingReviewMessages(true);
     if (livePollingTimer) {
       clearInterval(livePollingTimer);
       livePollingTimer = null;
@@ -945,6 +950,10 @@ function renderLiveConversationsList() {
 
   let filtered = liveConvosData.filter(c => {
     // Filter pill logic
+    if (liveFilter === 'pending_review') {
+      const hasPending = pendingReviewList.some(p => p.lead_id === c.id);
+      if (!hasPending) return false;
+    }
     if (liveFilter === 'ai' && c.ai_enabled === 0) return false;
     if (liveFilter === 'human' && c.ai_enabled === 1) return false;
 
@@ -993,6 +1002,11 @@ function renderLiveConversationsList() {
       ? `<span class="convo-ai-badge ai" title="IA respondendo automaticamente"><i class="fa-solid fa-robot"></i> IA</span>`
       : `<span class="convo-ai-badge human" title="Vendedor humano assumiu"><i class="fa-solid fa-user"></i> Vendedor</span>`;
 
+    const hasPendingReview = pendingReviewList.some(p => p.lead_id === c.id);
+    const pendingReviewTag = hasPendingReview 
+      ? `<span class="badge-tag" style="font-size: 0.65rem; background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); padding: 1px 4px; border-radius: 4px;" title="Aguardando aprovação humana"><i class="fa-solid fa-hourglass-half"></i> Revisão</span>`
+      : '';
+
     const initials = (c.name || 'C')
       .split(' ')
       .map(n => n[0])
@@ -1018,6 +1032,7 @@ function renderLiveConversationsList() {
             <span class="convo-preview">${escapeHtml(preview)}</span>
             <div style="display: flex; align-items: center; gap: 4px;">
               ${c.assigned_seller_name ? `<span class="badge-tag" style="font-size: 0.65rem; color: var(--primary); padding: 1px 4px; border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 4px;" title="Vendedor atribuído"><i class="fa-solid fa-user-tie"></i> ${escapeHtml(c.assigned_seller_name)}</span>` : ''}
+              ${pendingReviewTag}
               ${badgeHtml}
               <span class="lead-score-pill ${scoreClass}" style="padding: 1px 5px; font-size: 0.65rem;">
                 ${score} pts
@@ -1173,6 +1188,15 @@ async function renderLiveChatMessages(leadId, silent = false) {
         .replace(/\n/g, '<br>');
 
       const bubbleClass = isCustomer ? 'incoming' : 'outgoing';
+      let copilotBadge = '';
+      if (!isCustomer && m.copilot_status === 'pending_review') {
+        copilotBadge = `<span class="badge-tag" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); font-size: 0.65rem; padding: 1px 5px; border-radius: 4px; margin-left: 6px;"><i class="fa-solid fa-hourglass-half"></i> Aguardando Revisão</span>`;
+      } else if (!isCustomer && m.copilot_status === 'rejected') {
+        copilotBadge = `<span class="badge-tag" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); font-size: 0.65rem; padding: 1px 5px; border-radius: 4px; margin-left: 6px;"><i class="fa-solid fa-ban"></i> Recusado</span>`;
+      } else if (!isCustomer && m.copilot_status === 'edited') {
+        copilotBadge = `<span class="badge-tag" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 0.65rem; padding: 1px 5px; border-radius: 4px; margin-left: 6px;"><i class="fa-solid fa-pen-to-square"></i> Editado</span>`;
+      }
+
       const headerLabel = isCustomer 
         ? `<span class="bubble-sender-name"><i class="fa-solid fa-user"></i> ${escapeHtml(lead?.name || 'Cliente')}</span>`
         : `<span class="bubble-sender-name" style="color: var(--primary);"><i class="fa-solid ${isAi ? 'fa-robot' : 'fa-user-tie'}"></i> ${isAi ? 'AutoLead IA' : 'Vendedor da Loja'}</span>`;
@@ -1180,7 +1204,10 @@ async function renderLiveChatMessages(leadId, silent = false) {
       return `
         <div class="livechat-bubble ${bubbleClass}">
           <div class="bubble-header-row">
-            ${headerLabel}
+            <div>
+              ${headerLabel}
+              ${copilotBadge}
+            </div>
             <span class="bubble-timestamp">${time}</span>
           </div>
           <div class="bubble-body-text">${formattedContent}</div>
@@ -1909,7 +1936,11 @@ async function executeDeleteVehicle(vehicleId) {
 // ==========================================
 async function loadSettings() {
   try {
-    const res = await fetch('/api/settings');
+    const res = await fetch('/api/settings', {
+      headers: {
+        'Authorization': 'Bearer ' + getStoredToken()
+      }
+    });
     const json = await res.json();
     if (!json.success) return;
 
@@ -1925,6 +1956,32 @@ async function loadSettings() {
 
     const radio = document.querySelector(`input[name="aiProvider"][value="${data.provider}"]`);
     if (radio) radio.checked = true;
+
+    const providerSelect = document.getElementById('aiProviderSelect');
+    if (providerSelect && data.provider) {
+      providerSelect.value = data.provider;
+    }
+
+    const reviewToggle = document.getElementById('aiReviewModeToggle');
+    if (reviewToggle) {
+      reviewToggle.checked = !!data.aiReviewMode;
+      updateReviewModeLabel();
+    }
+
+    const geminiKeyEl = document.getElementById('geminiApiKey');
+    if (geminiKeyEl && data.hasGeminiKey) {
+      geminiKeyEl.placeholder = '•••••••••••••••• (Chave já configurada)';
+    }
+
+    const openaiKeyEl = document.getElementById('openaiApiKey');
+    if (openaiKeyEl && data.hasOpenAiKey) {
+      openaiKeyEl.placeholder = '•••••••••••••••• (Chave já configurada)';
+    }
+
+    const deepseekKeyEl = document.getElementById('deepseekApiKey');
+    if (deepseekKeyEl && data.hasDeepseekKey) {
+      deepseekKeyEl.placeholder = '•••••••••••••••• (Chave já configurada)';
+    }
 
     const nameInput = document.getElementById('dealershipNameInput');
     if (nameInput) nameInput.value = data.dealership.name;
@@ -1965,7 +2022,7 @@ async function handleSaveSettings(e) {
     dealershipAddress
   };
 
-  const providerEl = document.querySelector('input[name="aiProvider"]:checked') || document.getElementById('aiProviderSelect');
+  const providerEl = document.getElementById('aiProviderSelect') || document.querySelector('input[name="aiProvider"]:checked');
   if (providerEl?.value) bodyData.provider = providerEl.value;
 
   const geminiKeyEl = document.getElementById('geminiApiKey');
@@ -1973,6 +2030,12 @@ async function handleSaveSettings(e) {
 
   const openaiKeyEl = document.getElementById('openaiApiKey');
   if (openaiKeyEl?.value?.trim()) bodyData.openaiKey = openaiKeyEl.value.trim();
+
+  const deepseekKeyEl = document.getElementById('deepseekApiKey');
+  if (deepseekKeyEl?.value?.trim()) bodyData.deepseekKey = deepseekKeyEl.value.trim();
+
+  const reviewToggle = document.getElementById('aiReviewModeToggle');
+  if (reviewToggle) bodyData.aiReviewMode = reviewToggle.checked;
 
   try {
     const res = await fetch('/api/settings', {
@@ -2892,5 +2955,221 @@ async function handleChangePasswordSubmit(e) {
   }
 }
 
+// ==========================================
+// 10. MODO COPILOTO / REVISÃO HUMANA DE RESPOSTAS
+// ==========================================
+function updateReviewModeLabel() {
+  const toggle = document.getElementById('aiReviewModeToggle');
+  const label = document.getElementById('aiReviewModeLabel');
+  if (!toggle || !label) return;
+  if (toggle.checked) {
+    label.textContent = 'Ativado';
+    label.style.color = '#3b82f6';
+  } else {
+    label.textContent = 'Desativado';
+    label.style.color = 'var(--text-secondary)';
+  }
+}
 
+async function loadPendingReviewMessages(silent = false) {
+  try {
+    const token = getStoredToken();
+    if (!token) return;
 
+    const res = await fetch('/api/chat/pending-review', {
+      headers: {
+        'Authorization': 'Bearer ' + token
+      }
+    });
+    if (!res.ok) return;
+    const json = await res.json();
+    if (!json.success) return;
+
+    pendingReviewList = json.data || [];
+    const count = pendingReviewList.length;
+
+    // Atualiza badges no menu e filtros
+    const navBadge = document.getElementById('navPendingReviewBadge');
+    if (navBadge) {
+      navBadge.textContent = count;
+      navBadge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+
+    const countFilterEl = document.getElementById('countReviewFilter');
+    if (countFilterEl) countFilterEl.textContent = count;
+
+    const filterPill = document.getElementById('filterPillPendingReview');
+    if (filterPill) {
+      filterPill.style.display = count > 0 ? 'inline-flex' : 'none';
+    }
+
+    const countText = document.getElementById('pendingReviewCountText');
+    if (countText) countText.textContent = count;
+
+    renderPendingReviewUI();
+  } catch (err) {
+    if (!silent) console.error('Erro ao carregar mensagens pendentes de revisão:', err);
+  }
+}
+
+function renderPendingReviewUI() {
+  const section = document.getElementById('pendingReviewSection');
+  const listContainer = document.getElementById('pendingReviewCardsList');
+  if (!section || !listContainer) return;
+
+  if (!pendingReviewList || pendingReviewList.length === 0) {
+    section.style.display = 'none';
+    listContainer.innerHTML = '';
+    return;
+  }
+
+  section.style.display = 'block';
+
+  listContainer.innerHTML = pendingReviewList.map(msg => {
+    const leadName = escapeHtml(msg.lead_name || 'Lead Sem Nome');
+    const leadPhone = escapeHtml(msg.lead_phone || 'WhatsApp');
+    const vehicle = msg.vehicle_model ? `<span class="badge badge-info" style="font-size: 0.75rem;"><i class="fa-solid fa-car"></i> ${escapeHtml(msg.vehicle_model)}</span>` : '';
+    const formattedDate = new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    return `
+      <div class="pending-review-card" id="pending-card-${msg.id}">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px;">
+          <div>
+            <strong style="color: #fff; font-size: 0.95rem;">${leadName}</strong>
+            <span style="color: var(--text-muted); font-size: 0.8rem; margin-left: 6px;">${leadPhone}</span>
+            ${vehicle}
+          </div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-family: 'Roboto Mono', monospace;">
+            <i class="fa-solid fa-clock"></i> ${formattedDate}
+          </span>
+        </div>
+
+        <div class="pending-draft-content" id="draft-content-${msg.id}">
+          <p style="margin: 0; color: #e2e8f0; font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(msg.content)}</p>
+        </div>
+
+        <div id="draft-edit-box-${msg.id}" style="display: none; margin-bottom: 12px;">
+          <textarea class="pending-draft-textarea" id="draft-textarea-${msg.id}" rows="4">${escapeHtml(msg.content)}</textarea>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="cancelEditDraft(${msg.id})">Cancelar</button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="confirmEditAndSendDraft(${msg.id})">
+              <i class="fa-solid fa-paper-plane"></i> Salvar & Enviar
+            </button>
+          </div>
+        </div>
+
+        <div class="pending-card-actions" id="draft-actions-${msg.id}">
+          <button type="button" class="btn btn-success btn-sm" onclick="approvePendingDraft(${msg.id})">
+            <i class="fa-solid fa-check"></i> Aprovar e Enviar
+          </button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="openEditDraft(${msg.id})">
+            <i class="fa-solid fa-pen-to-square"></i> Editar Resposta
+          </button>
+          <button type="button" class="btn btn-danger btn-sm" onclick="rejectPendingDraft(${msg.id})">
+            <i class="fa-solid fa-ban"></i> Recusar
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openEditDraft(msgId) {
+  const content = document.getElementById(`draft-content-${msgId}`);
+  const editBox = document.getElementById(`draft-edit-box-${msgId}`);
+  const actions = document.getElementById(`draft-actions-${msgId}`);
+  if (content) content.style.display = 'none';
+  if (actions) actions.style.display = 'none';
+  if (editBox) editBox.style.display = 'block';
+  const textarea = document.getElementById(`draft-textarea-${msgId}`);
+  if (textarea) textarea.focus();
+}
+
+function cancelEditDraft(msgId) {
+  const content = document.getElementById(`draft-content-${msgId}`);
+  const editBox = document.getElementById(`draft-edit-box-${msgId}`);
+  const actions = document.getElementById(`draft-actions-${msgId}`);
+  if (content) content.style.display = 'block';
+  if (actions) actions.style.display = 'flex';
+  if (editBox) editBox.style.display = 'none';
+}
+
+async function approvePendingDraft(msgId) {
+  try {
+    const res = await fetch(`/api/chat/${msgId}/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getStoredToken()
+      }
+    });
+    const json = await res.json();
+    if (!json.success) {
+      alert(json.error || 'Erro ao aprovar resposta.');
+      return;
+    }
+    await loadPendingReviewMessages();
+    loadLiveConversations(true);
+    if (activeChatLeadId) renderLiveChatMessages(activeChatLeadId, true);
+  } catch (err) {
+    console.error('Erro ao aprovar rascunho:', err);
+    alert('Erro de conexão ao aprovar resposta.');
+  }
+}
+
+async function confirmEditAndSendDraft(msgId) {
+  const textarea = document.getElementById(`draft-textarea-${msgId}`);
+  const editedText = textarea?.value?.trim();
+  if (!editedText) {
+    alert('O texto da mensagem não pode ficar vazio.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/chat/${msgId}/edit-and-send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getStoredToken()
+      },
+      body: JSON.stringify({ editedText })
+    });
+    const json = await res.json();
+    if (!json.success) {
+      alert(json.error || 'Erro ao editar e enviar resposta.');
+      return;
+    }
+    await loadPendingReviewMessages();
+    loadLiveConversations(true);
+    if (activeChatLeadId) renderLiveChatMessages(activeChatLeadId, true);
+  } catch (err) {
+    console.error('Erro ao editar e enviar rascunho:', err);
+    alert('Erro de conexão ao editar e enviar resposta.');
+  }
+}
+
+async function rejectPendingDraft(msgId) {
+  const humanTakeover = confirm('Deseja recusar o envio desta resposta da IA?\\n\\nClique em OK para recusar E desativar a IA deste lead (assumir como humano).\\nClique em Cancelar para apenas descartar esta mensagem mantendo a IA ativa.');
+
+  try {
+    const res = await fetch(`/api/chat/${msgId}/reject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getStoredToken()
+      },
+      body: JSON.stringify({ markHumanTakeover: humanTakeover })
+    });
+    const json = await res.json();
+    if (!json.success) {
+      alert(json.error || 'Erro ao recusar resposta.');
+      return;
+    }
+    await loadPendingReviewMessages();
+    loadLiveConversations(true);
+    if (activeChatLeadId) renderLiveChatMessages(activeChatLeadId, true);
+  } catch (err) {
+    console.error('Erro ao recusar rascunho:', err);
+    alert('Erro de conexão ao recusar resposta.');
+  }
+}

@@ -72,6 +72,12 @@ router.post('/chat/send-photo', chatController.sendVehiclePhoto);
 router.get('/chat/messages/:leadId', chatController.getMessages);
 router.post('/chat/reset', chatController.resetSimulator);
 
+// Rotas do Modo Copiloto / Revisão de Mensagens da IA
+router.get('/chat/pending-review', chatController.getPendingReviewMessages);
+router.post('/chat/:messageId/approve', chatController.approvePendingMessage);
+router.post('/chat/:messageId/edit-and-send', chatController.editAndSendPendingMessage);
+router.post('/chat/:messageId/reject', chatController.rejectPendingMessage);
+
 // Rotas da Base de Conhecimento e RAG da Concessionária (Restritas ao Dono/Owner)
 router.get('/knowledge', requireOwner, knowledgeController.listKnowledge);
 router.post('/knowledge', requireOwner, knowledgeController.createKnowledge);
@@ -156,22 +162,40 @@ router.get('/settings', (req, res) => {
       provider: config.provider,
       openaiModel: config.openai.model,
       geminiModel: config.gemini.model,
+      deepseekModel: config.deepseek?.model,
       hasOpenAiKey: !!config.openai.apiKey,
-      hasGeminiKey: !!config.gemini.apiKey
+      hasGeminiKey: !!config.gemini.apiKey,
+      hasDeepseekKey: !!config.deepseek?.apiKey,
+      aiReviewMode: !!config.aiReviewMode
     }
   });
 });
 
 router.post('/settings', requireOwner, (req, res) => {
   try {
-    const { provider, openaiKey, geminiKey, dealershipName, dealershipAddress, dealershipPhone } = req.body;
+    const {
+      provider,
+      openaiKey,
+      geminiKey,
+      deepseekKey,
+      dealershipName,
+      dealershipAddress,
+      dealershipPhone,
+      aiReviewMode
+    } = req.body;
     
     if (provider) { config.provider = provider; settingsStore.save('ai_provider', provider); }
     if (openaiKey) { config.openai.apiKey = openaiKey; settingsStore.save('openai_api_key', openaiKey); }
     if (geminiKey) { config.gemini.apiKey = geminiKey; settingsStore.save('gemini_api_key', geminiKey); }
+    if (deepseekKey) { config.deepseek.apiKey = deepseekKey; settingsStore.save('deepseek_api_key', deepseekKey); }
     if (dealershipName) { config.dealership.name = dealershipName; settingsStore.save('dealership_name', dealershipName); }
     if (dealershipAddress) { config.dealership.address = dealershipAddress; settingsStore.save('dealership_address', dealershipAddress); }
     if (dealershipPhone) { config.dealership.phone = dealershipPhone; settingsStore.save('dealership_phone', dealershipPhone); }
+    if (aiReviewMode !== undefined) {
+      const boolVal = (aiReviewMode === true || aiReviewMode === 'true' || aiReviewMode === 1 || aiReviewMode === '1');
+      config.aiReviewMode = boolVal;
+      settingsStore.save('ai_review_mode', boolVal ? 'true' : 'false');
+    }
 
     auditService.logAudit({
       organization_id: 'default',
@@ -184,6 +208,7 @@ router.post('/settings', requireOwner, (req, res) => {
         dealershipName,
         dealershipAddress,
         dealershipPhone,
+        aiReviewMode,
         changedKeys: Object.keys(req.body).filter(k => !k.toLowerCase().includes('key'))
       }
     });

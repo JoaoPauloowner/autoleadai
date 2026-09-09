@@ -1,0 +1,8 @@
+node_modules
+.git
+.env
+data/whatsapp_session
+data/*.db*
+data/*.json
+tests
+npm-debug.log

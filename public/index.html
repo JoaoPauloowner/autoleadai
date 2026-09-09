@@ -38,6 +38,7 @@
           <i class="fa-brands fa-whatsapp"></i>
           <span>Atendimento ao Vivo</span>
           <span class="nav-live-dot"></span>
+          <span class="nav-badge" id="navPendingReviewBadge" style="display: none; background: #f59e0b; color: #000; font-weight: 700; margin-left: auto;">0</span>
         </button>
         <button class="nav-item" data-view="crm">
           <i class="fa-solid fa-filter-circle-dollar"></i>
@@ -206,6 +207,31 @@
 
       <!-- VIEW: Central de Atendimento ao Vivo (Live WhatsApp Inbox) -->
       <section id="view-livechat" class="content-view">
+        <!-- Seção: Aguardando Revisão Humana (Modo Copiloto) -->
+        <div id="pendingReviewSection" class="pending-review-box" style="display: none; margin-bottom: 20px; padding: 18px 20px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="width: 38px; height: 38px; border-radius: 50%; background: #f59e0b; color: #000; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;">
+                <i class="fa-solid fa-user-check"></i>
+              </div>
+              <div>
+                <h4 style="color: #fff; margin-bottom: 2px; font-size: 1rem; font-weight: 700;">
+                  Aguardando Revisão Humana (<span id="pendingReviewCountText">0</span>)
+                </h4>
+                <p style="color: var(--text-secondary); font-size: 0.8rem; margin: 0;">
+                  A IA preparou respostas para estes clientes. Você pode aprovar, editar ou recusar antes do envio.
+                </p>
+              </div>
+            </div>
+            <span class="stat-badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); font-size: 0.75rem; padding: 4px 10px;">
+              <i class="fa-solid fa-clock"></i> Copiloto Ativo
+            </span>
+          </div>
+          <div id="pendingReviewCardsList" style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Renderizado dinamicamente via JS -->
+          </div>
+        </div>
+
         <div class="livechat-layout">
           <!-- Coluna 1: Lista de Conversas do WhatsApp -->
           <div class="livechat-sidebar">
@@ -216,6 +242,7 @@
               </div>
               <div class="livechat-filter-pills">
                 <button class="filter-pill active" data-filter="all" onclick="setLiveFilter('all')">Todos (<span id="countAllChats">0</span>)</button>
+                <button class="filter-pill" id="filterPillPendingReview" data-filter="pending_review" onclick="setLiveFilter('pending_review')" style="display: none; border-color: rgba(245, 158, 11, 0.5);"><i class="fa-solid fa-hourglass-half" style="color: #f59e0b;"></i> Revisão (<span id="countReviewFilter">0</span>)</button>
                 <button class="filter-pill" data-filter="ai" onclick="setLiveFilter('ai')"><i class="fa-solid fa-robot"></i> IA Ativa</button>
                 <button class="filter-pill" data-filter="human" onclick="setLiveFilter('human')"><i class="fa-solid fa-user"></i> Vendedor</button>
               </div>
@@ -529,7 +556,61 @@
               </div>
             </div>
 
-            <button type="submit" class="btn btn-primary" style="margin-top: 14px;">
+            <!-- Card: Modo de Revisão Humana / Copiloto -->
+            <div
+              style="margin-top: 18px; padding: 18px; border-radius: 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: flex-start; gap: 14px; max-width: 80%;">
+                <div
+                  style="width: 46px; height: 46px; border-radius: 50%; background: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; color: #fff; flex-shrink: 0;">
+                  <i class="fa-solid fa-user-shield"></i>
+                </div>
+                <div>
+                  <h4 style="color: #fff; margin-bottom: 4px;">Revisar respostas da IA antes de enviar</h4>
+                  <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0;">
+                    Quando ativado, a IA prepara a resposta mas não envia automaticamente — um vendedor precisa aprovar, editar ou recusar antes do cliente receber.
+                  </p>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <label class="switch-control">
+                  <input type="checkbox" id="aiReviewModeToggle" onchange="updateReviewModeLabel()">
+                  <span class="switch-slider"></span>
+                </label>
+                <span id="aiReviewModeLabel" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); min-width: 75px;">Desativado</span>
+              </div>
+            </div>
+
+            <!-- Card: Provedor de IA e Chaves de API -->
+            <div style="margin-top: 18px; padding: 18px; border-radius: 12px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color);">
+              <h4 style="color: #fff; margin-bottom: 12px;"><i class="fa-solid fa-brain" style="color: var(--primary);"></i> Motor de Inteligência Artificial</h4>
+              
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label for="aiProviderSelect">Provedor Ativo:</label>
+                <select id="aiProviderSelect" class="form-control" style="background: var(--bg-input); color: #fff; border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; width: 100%;">
+                  <option value="gemini">Google Gemini (Recomendado - gemini-3.1-flash-lite)</option>
+                  <option value="openai">OpenAI (gpt-4o-mini)</option>
+                  <option value="deepseek">DeepSeek (deepseek-chat)</option>
+                </select>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="geminiApiKey">Chave Gemini API:</label>
+                  <input type="password" id="geminiApiKey" placeholder="AIzaSy... (Google AI Studio)">
+                </div>
+                <div class="form-group">
+                  <label for="openaiApiKey">Chave OpenAI API:</label>
+                  <input type="password" id="openaiApiKey" placeholder="sk-proj-...">
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top: 8px;">
+                <label for="deepseekApiKey">Chave DeepSeek API:</label>
+                <input type="password" id="deepseekApiKey" placeholder="sk-...">
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="margin-top: 18px;">
               <i class="fa-solid fa-floppy-disk"></i> Salvar Configurações da Loja
             </button>
           </form>

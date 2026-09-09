@@ -29,10 +29,10 @@ async function transcribeAudio({ audioBuffer, mimeType = 'audio/ogg', mockText =
     };
   }
 
-  // Se tiver chave do Gemini, usa a capacidade nativa de áudio do Gemini 2.0 Flash
+  // Se tiver chave do Gemini, usa a capacidade nativa de áudio do Gemini 3.1 Flash Lite
   if (googleGenAIClient && audioBuffer) {
     try {
-      const model = googleGenAIClient.getGenerativeModel({ model: config.gemini.model || 'gemini-2.0-flash' });
+      const model = googleGenAIClient.getGenerativeModel({ model: config.gemini.model || 'gemini-3.1-flash-lite' });
       const result = await model.generateContent([
         {
           inlineData: {
@@ -74,7 +74,7 @@ async function inspectVehicleImage({ imageBase64, mimeType = 'image/jpeg', mockD
 
   if (googleGenAIClient && imageBase64) {
     try {
-      const model = googleGenAIClient.getGenerativeModel({ model: config.gemini.model || 'gemini-2.0-flash' });
+      const model = googleGenAIClient.getGenerativeModel({ model: config.gemini.model || 'gemini-3.1-flash-lite' });
       const result = await model.generateContent([
         {
           inlineData: {

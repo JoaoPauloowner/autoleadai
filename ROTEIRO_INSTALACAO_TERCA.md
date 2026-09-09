@@ -78,3 +78,7 @@ Você tem 3 opções super fáceis:
   * *Resposta:* "Zero. O sistema se conecta ao seu WhatsApp via QR Code Web. Não há cobrança por conversa da Meta."
 * **"E se meu vendedor quiser responder no WhatsApp com a mão dele?"**  
   * *Resposta:* "Pode responder normalmente pelo celular. Tudo o que o robô conversa fica visível no celular da loja, e o vendedor pode assumir o atendimento a qualquer momento."
+* **"Tenho medo da IA responder direto para os clientes. Posso aprovar antes?"**  
+  * *Resposta:* "Sim! Nas Configurações, basta ativar o **Modo Copiloto (Revisar respostas antes de enviar)**. Quando ativado, a IA redige a resposta em segundos mas não envia: ela cria um card na aba 'Aguardando Revisão' para seu consultor aprovar com 1 clique, editar o texto ou recusar."
+* **"Quais motores de Inteligência Artificial o sistema aceita?"**  
+  * *Resposta:* "Vem configurado de fábrica com **Google Gemini** (modelo `gemini-3.1-flash-lite`, super rápido e econômico), e você também pode alternar para **DeepSeek** (`deepseek-chat`) ou **OpenAI** (`gpt-4o-mini`) com sua própria chave de API diretamente no painel."

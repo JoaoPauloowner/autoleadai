@@ -18,7 +18,8 @@ Plataforma comercial completa, autônoma e independente (com **cérebro próprio
 - **💾 Banco de Dados SQLite Embutido:** Armazena veículos, leads, agendamentos, tarefas e histórico de chat sem precisar de servidores externos.
 - **📱 Simulador de WhatsApp com Telemetria:** Teste mensagens de texto, áudios e envio de fotos diretamente pelo navegador, com console lateral exibindo as chamadas de *Tools* e raciocínio da IA.
 - **📡 Webhook Universal para WhatsApp:** Endpoint pronto para plugar na **Evolution API** ou **Z-API** para atendimento real.
-- **🔄 Multi-Provedor de IA:** Suporte nativo a **Google Gemini** (Gemini 2.0 Flash com áudio e visão) e **OpenAI** (GPT-4o / GPT-4o-mini).
+- **🔄 Multi-Provedor de IA:** Suporte flexível a **Google Gemini** (padrão nativo atualizado para `gemini-3.1-flash-lite`), **OpenAI** (`gpt-4o-mini`) e **DeepSeek** (`deepseek-chat` compatível nativamente).
+- **🛡️ Modo Copiloto / Revisão Humana:** Ative o modo de supervisão onde a IA redige rascunhos de resposta, mas só envia após aprovação, edição ou recusa de um consultor comercial humano.
 
 ---
 
